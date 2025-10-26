@@ -1,0 +1,9 @@
+{
+  "compilerOptions": {
+    "lib": ["ES2021", "WebWorker"],
+    "module": "ESNext",
+    "target": "ES2021",
+    "moduleResolution": "Bundler",
+    "strict": true
+  }
+}
