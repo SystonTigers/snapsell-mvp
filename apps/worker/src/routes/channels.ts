@@ -6,6 +6,10 @@ const r = Router({ base: "/channels" });
 // POST /channels/ebay/sync-qty { variantId, newQty }
 r.post("/ebay/sync-qty", async () => new Response(JSON.stringify({ ok: true })));
 
+// POST /channels/delist-all { variantId }
+// -> For ebay: end listing (or set qty 0). For FB/Vinted/Gumtree: insert delist_tasks for each active listing.
+r.post("/delist-all", async () => new Response(JSON.stringify({ ok: true })));
+
 // Administrative: attach/map a channel listing to a variant (when known)
 // POST /channels/map { platform, variantId, platformListingId, status, payload }
 r.post("/map", async () => new Response(JSON.stringify({ ok: true })));

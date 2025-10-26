@@ -15,6 +15,7 @@ r.post("/adjust", async () => new Response(JSON.stringify({ ok: true })));
 //      insert into relist_tasks (pending) with template_payload
 // 6) if platform !== 'ebay' && there is an active eBay listing for this variant:
 //      POST /channels/ebay/sync-qty
+// 7) if new_on_hand === 0 -> POST /channels/delist-all to end listings everywhere
 r.post("/sale", async () => new Response(JSON.stringify({ ok: true })));
 
 // GET stock view
