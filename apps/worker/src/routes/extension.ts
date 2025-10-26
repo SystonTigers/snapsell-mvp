@@ -1,94 +1,70 @@
-import { Router } from "itty-router";
+import { Router } from 'itty-router';
+import { json } from '../lib/http';
 
-const r = Router({ base: "/extension" });
+const router = Router({ base: '/extension' });
 
-r.get("/tasks", async (req) => {
-  const url = new URL(req.url);
-  const platform = url.searchParams.get("platform");
-  const limit = Number(url.searchParams.get("limit") ?? "5");
+router.get('/tasks', async (request) => {
+  const url = new URL(request.url);
+  const platform = url.searchParams.get('platform');
+  const limit = Math.min(Number(url.searchParams.get('limit') ?? '5'), 25);
 
   if (!platform) {
-    return new Response(JSON.stringify({ tasks: [], error: "platform required" }), {
-      status: 400,
-      headers: { "Content-Type": "application/json" }
-    });
+    return json({ tasks: [], error: 'platform required' }, { status: 400 });
   }
 
-  console.log("[extension] fetch tasks", { platform, limit });
-  // TODO: query relist_tasks table for pending rows matching platform and owner
-
-  return new Response(JSON.stringify({ tasks: [] }), {
-    headers: { "Content-Type": "application/json" }
-  });
+  console.log('[extension] fetch relist tasks', { platform, limit });
+  return json({ tasks: [] });
 });
 
-r.post("/tasks/:id/start", async (req) => {
-  const { id } = req.params as { id: string };
-  console.log("[extension] start task", { id });
-  // TODO: mark task as in_progress and increment attempts
-  return new Response(JSON.stringify({ ok: true }), {
-    headers: { "Content-Type": "application/json" }
-  });
+router.post('/tasks/:id/start', async (request) => {
+  const { id } = request.params as { id: string };
+  console.log('[extension] start relist task', { id });
+  return json({ ok: true });
 });
 
-r.post("/tasks/:id/complete", async (req) => {
-  const { id } = req.params as { id: string };
-  const body = await req.json().catch(() => ({}));
-  console.log("[extension] complete task", { id, body });
-  // TODO: mark task completed, write channel_listings mapping if provided
-  return new Response(JSON.stringify({ ok: true }), {
-    headers: { "Content-Type": "application/json" }
-  });
+router.post('/tasks/:id/complete', async (request) => {
+  const { id } = request.params as { id: string };
+  const body = await request.json().catch(() => ({}));
+  console.log('[extension] complete relist task', { id, body });
+  return json({ ok: true });
 });
 
-r.post("/tasks/:id/fail", async (req) => {
-  const { id } = req.params as { id: string };
-  const body = await req.json().catch(() => ({}));
-  console.log("[extension] fail task", { id, body });
-  // TODO: increment attempts, persist error, keep pending if attempts remain
-  return new Response(JSON.stringify({ ok: true }), {
-    headers: { "Content-Type": "application/json" }
-  });
+router.post('/tasks/:id/fail', async (request) => {
+  const { id } = request.params as { id: string };
+  const body = await request.json().catch(() => ({}));
+  console.log('[extension] fail relist task', { id, body });
+  return json({ ok: true });
 });
-// Extension pulls pending relist jobs for its platform
-// GET /extension/tasks?platform=facebook|vinted|gumtree&limit=5
-r.get(
-  "/tasks",
-  async () =>
-    new Response(JSON.stringify({ tasks: [] }), {
-      headers: { "Content-Type": "application/json" }
-    })
-);
 
-// Extension marks a task in progress
-// POST /extension/tasks/:id/start
-r.post("/tasks/:id/start", async () => new Response(JSON.stringify({ ok: true })));
+router.get('/delist-tasks', async (request) => {
+  const url = new URL(request.url);
+  const platform = url.searchParams.get('platform');
+  const limit = Math.min(Number(url.searchParams.get('limit') ?? '5'), 25);
+  if (!platform) {
+    return json({ tasks: [], error: 'platform required' }, { status: 400 });
+  }
+  console.log('[extension] fetch delist tasks', { platform, limit });
+  return json({ tasks: [] });
+});
 
-// Extension completes a task (with new listing id/url)
-// POST /extension/tasks/:id/complete { platformListingId, url }
-r.post("/tasks/:id/complete", async () => new Response(JSON.stringify({ ok: true })));
+router.post('/delist-tasks/:id/start', async (request) => {
+  const { id } = request.params as { id: string };
+  console.log('[extension] start delist task', { id });
+  return json({ ok: true });
+});
 
-// Extension reports failure (increments attempts, stores error)
-// POST /extension/tasks/:id/fail { error }
-r.post("/tasks/:id/fail", async () => new Response(JSON.stringify({ ok: true })));
+router.post('/delist-tasks/:id/complete', async (request) => {
+  const { id } = request.params as { id: string };
+  const body = await request.json().catch(() => ({}));
+  console.log('[extension] complete delist task', { id, body });
+  return json({ ok: true });
+});
 
-// Delist task polling for browser extension workers
-// GET /extension/delist-tasks?platform=facebook|vinted|gumtree&limit=5
-r.get(
-  "/delist-tasks",
-  async () =>
-    new Response(JSON.stringify({ tasks: [] }), {
-      headers: { "Content-Type": "application/json" }
-    })
-);
+router.post('/delist-tasks/:id/fail', async (request) => {
+  const { id } = request.params as { id: string };
+  const body = await request.json().catch(() => ({}));
+  console.log('[extension] fail delist task', { id, body });
+  return json({ ok: true });
+});
 
-// POST /extension/delist-tasks/:id/start
-r.post("/delist-tasks/:id/start", async () => new Response(JSON.stringify({ ok: true })));
-
-// POST /extension/delist-tasks/:id/complete
-r.post("/delist-tasks/:id/complete", async () => new Response(JSON.stringify({ ok: true })));
-
-// POST /extension/delist-tasks/:id/fail { error }
-r.post("/delist-tasks/:id/fail", async () => new Response(JSON.stringify({ ok: true })));
-
-export default { handle: r.handle };
+export default { handle: router.handle };

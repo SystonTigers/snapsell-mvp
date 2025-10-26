@@ -1,0 +1,112 @@
+openapi: 3.0.3
+info:
+  title: SnapSell API
+  version: 0.1.0
+servers:
+  - url: https://snapsell-api.example.workers.dev
+paths:
+  /items/price:
+    post:
+      summary: Get price suggestions for an item
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                comps:
+                  type: array
+                  items:
+                    type: object
+                    properties:
+                      price:
+                        type: number
+                      condition:
+                        type: string
+              required:
+                - comps
+      responses:
+        '200':
+          description: Price suggestions returned
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok:
+                    type: boolean
+                  price:
+                    type: object
+                    properties:
+                      low:
+                        type: number
+                      mid:
+                        type: number
+                      high:
+                        type: number
+  /inventory/stock:
+    get:
+      summary: List inventory rows with channel context
+      responses:
+        '200':
+          description: Inventory listing response
+  /channels/ebay/sync-qty:
+    post:
+      summary: Synchronise quantity with eBay offers
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                accountId:
+                  type: string
+                offerIds:
+                  type: array
+                  items:
+                    type: string
+                skus:
+                  type: array
+                  items:
+                    type: string
+                quantity:
+                  type: integer
+                price:
+                  type: object
+                  properties:
+                    currency:
+                      type: string
+                    value:
+                      type: number
+              required:
+                - accountId
+                - quantity
+      responses:
+        '200':
+          description: Synchronisation accepted
+  /purchases:
+    get:
+      summary: List purchase orders
+      responses:
+        '200':
+          description: Purchase list response
+  /purchases/{id}/allocate:
+    post:
+      summary: Allocate landed costs across purchase lines
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      responses:
+        '202':
+          description: Allocation enqueued
+  /export/sales.csv:
+    get:
+      summary: Export sales as CSV
+      responses:
+        '200':
+          description: CSV export stream
