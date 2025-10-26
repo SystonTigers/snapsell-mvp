@@ -99,6 +99,39 @@ create table public.sales (
   sold_at timestamptz default now()
 );
 
+-- Channel listing management
+create table public.channel_listings (
+  id uuid primary key default gen_random_uuid(),
+  owner_id uuid not null,
+  variant_id uuid references public.variants(id) on delete cascade,
+  platform text not null,
+  platform_listing_id text,
+  status text default 'active',
+  last_synced_qty integer default 0,
+  payload_json jsonb,
+  created_at timestamptz default now(),
+  updated_at timestamptz default now()
+);
+
+create table public.relist_tasks (
+  id uuid primary key default gen_random_uuid(),
+  owner_id uuid not null,
+  platform text not null,
+  variant_id uuid references public.variants(id) on delete cascade,
+  action text not null default 'create_listing',
+  template_payload jsonb,
+  status text default 'pending',
+  attempts integer default 0,
+  error text,
+  created_at timestamptz default now(),
+  updated_at timestamptz default now()
+);
+
+alter table public.variants
+  add column auto_relist_facebook boolean default true,
+  add column auto_relist_vinted boolean default true,
+  add column auto_relist_gumtree boolean default true;
+
 -- Links
 alter table public.items
   add constraint fk_items_product foreign key (product_id) references public.products(id) on delete set null;
@@ -138,6 +171,24 @@ select
   s.sold_at
 from public.sales s;
 
+create view public.vw_variant_channels as
+select
+  v.id as variant_id,
+  p.sku,
+  v.variant_sku,
+  p.title,
+  coalesce(s.on_hand,0) as on_hand,
+  json_agg(cl.*) filter (where cl.id is not null) as listings
+from public.variants v
+join public.products p on p.id = v.product_id
+left join (
+  select variant_id, sum(qty) as on_hand
+  from public.stock_movements
+  group by variant_id
+) s on s.variant_id = v.id
+left join public.channel_listings cl on cl.variant_id = v.id and cl.status = 'active'
+group by v.id, p.sku, v.variant_sku, p.title, s.on_hand;
+
 -- RLS
 alter table public.items enable row level security;
 alter table public.media enable row level security;
@@ -147,6 +198,8 @@ alter table public.products enable row level security;
 alter table public.variants enable row level security;
 alter table public.stock_movements enable row level security;
 alter table public.sales enable row level security;
+alter table public.channel_listings enable row level security;
+alter table public.relist_tasks enable row level security;
 
 create policy "items_owner_rw" on public.items
   for all using (owner_id = auth.uid()) with check (owner_id = auth.uid());
