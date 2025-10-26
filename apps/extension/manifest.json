@@ -3,7 +3,7 @@
   "name": "SnapSell Autofill",
   "version": "0.1.0",
   "description": "Auto-fill listing forms using SnapSell drafts.",
-  "permissions": ["activeTab", "scripting", "storage"],
+  "permissions": ["activeTab", "scripting", "storage", "tabs"],
   "host_permissions": [
     "https://*.vinted.*/*",
     "https://www.gumtree.com/*",

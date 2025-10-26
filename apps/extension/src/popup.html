@@ -1,6 +1,22 @@
 <!doctype html>
-<html><body>
-  <h3>SnapSell</h3>
-  <div id="app">Select an item and open target site.</div>
-  <script src="popup.js"></script>
-</body></html>
+<html>
+  <body>
+    <main style="font-family: system-ui; min-width: 280px; padding: 12px;">
+      <h3 style="margin-top:0">SnapSell Tasks</h3>
+      <label style="display:block; font-size:12px; margin-bottom:4px; color:#4b5563;">API base URL</label>
+      <input id="apiBase" type="text" style="width:100%; padding:6px 8px; margin-bottom:8px;" placeholder="https://api.snapsell.workers.dev" />
+
+      <label style="display:block; font-size:12px; margin-bottom:4px; color:#4b5563;">Platform</label>
+      <select id="platform" style="width:100%; padding:6px 8px; margin-bottom:8px;">
+        <option value="facebook">Facebook Marketplace</option>
+        <option value="vinted">Vinted</option>
+        <option value="gumtree">Gumtree</option>
+      </select>
+
+      <button id="refresh" style="width:100%; padding:8px; background:#111827; color:#fff; border:none; border-radius:4px;">Fetch pending tasks</button>
+      <p id="status" style="font-size:12px; color:#4b5563; margin-top:8px;">Idle</p>
+      <ul id="tasks" style="list-style:none; padding:0; margin:0;"></ul>
+    </main>
+    <script src="popup.js"></script>
+  </body>
+</html>

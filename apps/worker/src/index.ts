@@ -4,6 +4,8 @@ import listings from "./routes/listings";
 import auth from "./routes/auth";
 import inventory from "./routes/inventory";
 import exportsCsv from "./routes/exports";
+import channels from "./routes/channels";
+import extension from "./routes/extension";
 
 export interface Env {
   SUPABASE_URL: string;
@@ -22,5 +24,7 @@ router.all("/listings/*", listings.handle);
 router.all("/auth/*", auth.handle);
 router.all("/inventory/*", inventory.handle);
 router.all("/export/*", exportsCsv.handle);
+router.all("/channels/*", channels.handle);
+router.all("/extension/*", extension.handle);
 
 export default { fetch: (req: Request, env: Env, ctx: ExecutionContext) => router.handle(req, env, ctx) };
