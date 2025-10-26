@@ -1,27 +1,51 @@
-import { Router } from "itty-router";
-const r = Router({ base: "/channels" });
+import { Router } from 'itty-router';
+import { json } from '../lib/http';
+import type { Env } from '../index';
+import { bulkUpdatePriceQuantity, resolveEbayAccessToken } from '../lib/ebay';
 
-r.post("/ebay/sync-qty", async (req: Request) => {
-  const body = await req.json().catch(() => ({}));
-  const { variantId, newQty } = body as { variantId?: string; newQty?: number };
+const router = Router({ base: '/channels' });
 
-  if (!variantId || typeof newQty !== "number") {
-    return new Response(JSON.stringify({ ok: false, error: "variantId and newQty required" }), {
-      status: 400,
-      headers: { "Content-Type": "application/json" }
-    });
+router.post('/ebay/sync-qty', async (request, env: Env) => {
+  const body = await request.json().catch(() => null);
+  if (!body || typeof body !== 'object') {
+    return json({ ok: false, error: 'Invalid JSON body' }, { status: 400 });
   }
 
-  // TODO: integrate with eBay Sell API and persist last_synced_qty in channel_listings
-  console.log("[channels] sync eBay quantity", { variantId, newQty });
+  const { accountId, offerIds, skus, quantity, price } = body as {
+    accountId?: string;
+    offerIds?: string[];
+    skus?: string[];
+    quantity?: number;
+    price?: { currency: string; value: number };
+  };
 
-  return new Response(JSON.stringify({ ok: true, variantId, newQty }), {
-    headers: { "Content-Type": "application/json" }
+  if (!accountId) {
+    return json({ ok: false, error: 'accountId required' }, { status: 400 });
+  }
+  if (typeof quantity !== 'number' || quantity < 0) {
+    return json({ ok: false, error: 'quantity must be a non-negative number' }, { status: 400 });
+  }
+  if ((!offerIds || offerIds.length === 0) && (!skus || skus.length === 0)) {
+    return json({ ok: false, error: 'Provide offerIds or skus to update' }, { status: 400 });
+  }
+
+  const accessToken = await resolveEbayAccessToken(env, accountId);
+  const result = await bulkUpdatePriceQuantity({
+    accessToken,
+    quantity,
+    offerIds,
+    skus,
+    price,
   });
+
+  return json({ ok: true, result });
 });
 
-r.post("/map", async (req: Request) => {
-  const body = await req.json().catch(() => ({}));
+router.post('/map', async (request: Request) => {
+  const body = await request.json().catch(() => null);
+  if (!body || typeof body !== 'object') {
+    return json({ ok: false, error: 'Invalid JSON body' }, { status: 400 });
+  }
   const { platform, variantId, platformListingId, status, payload } = body as {
     platform?: string;
     variantId?: string;
@@ -31,58 +55,35 @@ r.post("/map", async (req: Request) => {
   };
 
   if (!platform || !variantId) {
-    return new Response(JSON.stringify({ ok: false, error: "platform and variantId required" }), {
-      status: 400,
-      headers: { "Content-Type": "application/json" }
-    });
+    return json({ ok: false, error: 'platform and variantId required' }, { status: 400 });
   }
 
-  console.log("[channels] map listing", { platform, variantId, platformListingId, status, payload });
-  // TODO: upsert into channel_listings table via Supabase service role
-
-  return new Response(JSON.stringify({ ok: true }), {
-    headers: { "Content-Type": "application/json" }
-  });
+  console.log('[channels] map listing', { platform, variantId, platformListingId, status, hasPayload: !!payload });
+  return json({ ok: true });
 });
 
-r.get("/variant/:variantId", async (req) => {
-  const { variantId } = req.params as { variantId: string };
+router.post('/delist-all', async (request: Request) => {
+  const body = await request.json().catch(() => null);
+  if (!body || typeof body !== 'object') {
+    return json({ ok: false, error: 'Invalid JSON body' }, { status: 400 });
+  }
+  const { variantId } = body as { variantId?: string };
   if (!variantId) {
-    return new Response(JSON.stringify({ listings: [] }), {
-      headers: { "Content-Type": "application/json" }
-    });
+    return json({ ok: false, error: 'variantId required' }, { status: 400 });
   }
 
-  // TODO: query vw_variant_channels for the specific variant via Supabase REST
-  console.log("[channels] fetch variant listings", { variantId });
-
-  return new Response(JSON.stringify({ listings: [] }), {
-    headers: { "Content-Type": "application/json" }
-  });
+  console.log('[channels] requested delist-all', { variantId });
+  return json({ ok: true });
 });
 
-const r = Router({ base: "/channels" });
+router.get('/variant/:variantId', async (request) => {
+  const { variantId } = request.params as { variantId: string };
+  if (!variantId) {
+    return json({ listings: [] });
+  }
 
-// Called after sale: decrement eBay quantity or end listing
-// POST /channels/ebay/sync-qty { variantId, newQty }
-r.post("/ebay/sync-qty", async () => new Response(JSON.stringify({ ok: true })));
+  console.log('[channels] fetch variant listings', { variantId });
+  return json({ listings: [] });
+});
 
-// POST /channels/delist-all { variantId }
-// -> For ebay: end listing (or set qty 0). For FB/Vinted/Gumtree: insert delist_tasks for each active listing.
-r.post("/delist-all", async () => new Response(JSON.stringify({ ok: true })));
-
-// Administrative: attach/map a channel listing to a variant (when known)
-// POST /channels/map { platform, variantId, platformListingId, status, payload }
-r.post("/map", async () => new Response(JSON.stringify({ ok: true })));
-
-// Helper: list active listings per variant
-// GET /channels/variant/:variantId
-r.get(
-  "/variant/:variantId",
-  async () =>
-    new Response(JSON.stringify({ listings: [] }), {
-      headers: { "Content-Type": "application/json" }
-    })
-);
-
-export default { handle: r.handle };
+export default { handle: router.handle };

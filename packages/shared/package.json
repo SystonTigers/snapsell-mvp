@@ -1,1 +1,10 @@
-{ "name": "snapsell-shared", "private": true, "version": "0.0.1" }
+{
+  "name": "snapsell-shared",
+  "private": true,
+  "version": "0.0.1",
+  "scripts": {
+    "lint": "eslint --ext .ts src",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
+  }
+}

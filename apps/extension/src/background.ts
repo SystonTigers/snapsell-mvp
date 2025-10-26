@@ -96,13 +96,13 @@ function getTabQueryForPlatform(platform: ChannelPlatform): string[] {
   }
 }
 
-function ensurePolling(platform: ChannelPlatform) {
+async function ensurePolling(platform: ChannelPlatform) {
   if (pollTimers.has(platform)) return;
   const timerId = setInterval(() => {
-    pollPlatform(platform);
+    void pollPlatform(platform);
   }, 15000);
   pollTimers.set(platform, Number(timerId));
-  void pollPlatform(platform);
+  await pollPlatform(platform);
 }
 
 function stopPolling(platform: ChannelPlatform) {
@@ -113,26 +113,41 @@ function stopPolling(platform: ChannelPlatform) {
   }
 }
 
+async function refreshPollingState() {
+  await Promise.all(
+    (Object.keys(platformMatchers) as ChannelPlatform[]).map(async (platform) => {
+      const tabs = await queryTabs({ url: getTabQueryForPlatform(platform) });
+      if (tabs.length) {
+        await ensurePolling(platform);
+      } else {
+        stopPolling(platform);
+      }
+    }),
+  );
+}
+
 chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
-  const platform = getPlatformFromUrl(changeInfo.url ?? tab.url ?? "");
-  if (!platform) return;
-  if (changeInfo.status === "complete") {
-    ensurePolling(platform);
+  const url = changeInfo.url ?? tab.url ?? "";
+  const platform = getPlatformFromUrl(url);
+  if (platform && changeInfo.status === "complete") {
+    void ensurePolling(platform);
+    return;
+  }
+  if (changeInfo.status === "loading" && url && !platform) {
+    void refreshPollingState();
   }
 });
 
 chrome.tabs.onRemoved.addListener(async () => {
-  const tabs = await queryTabs({ active: true });
-  const activePlatforms = new Set<ChannelPlatform>();
-  for (const tab of tabs) {
-    const platform = getPlatformFromUrl(tab.url ?? "");
-    if (platform) activePlatforms.add(platform);
-  }
-  (Object.keys(platformMatchers) as ChannelPlatform[]).forEach((platform) => {
-    if (!activePlatforms.has(platform)) {
-      stopPolling(platform);
-    }
-  });
+  await refreshPollingState();
+});
+
+chrome.tabs.onActivated.addListener(async () => {
+  await refreshPollingState();
+});
+
+chrome.windows.onFocusChanged.addListener(async () => {
+  await refreshPollingState();
 });
 
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {

@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { ApiError, createApiClient } from "../../lib/api";
 
 type ChannelPlatform = "facebook" | "vinted" | "gumtree" | "ebay";
 
@@ -25,6 +26,7 @@ type VariantRow = {
 };
 
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE ?? "";
+const api = createApiClient(API_BASE || "");
 
 const demoRows: VariantRow[] = [
   {
@@ -48,15 +50,14 @@ async function fetchVariantRows(): Promise<VariantRow[]> {
     return demoRows;
   }
   try {
-    const res = await fetch(`${API_BASE}/inventory/stock`, { headers: { "Content-Type": "application/json" } });
-    if (!res.ok) {
-      console.warn("SnapSell inventory fetch failed", res.status);
-      return demoRows;
-    }
-    const data = (await res.json()) as { rows?: VariantRow[] };
+    const data = await api.get<{ rows?: VariantRow[] }>("/inventory/stock");
     return Array.isArray(data.rows) && data.rows.length ? data.rows : demoRows;
   } catch (err) {
-    console.error("SnapSell inventory fetch error", err);
+    if (err instanceof ApiError) {
+      console.warn("SnapSell inventory fetch failed", err.status);
+    } else {
+      console.error("SnapSell inventory fetch error", err);
+    }
     return demoRows;
   }
 }

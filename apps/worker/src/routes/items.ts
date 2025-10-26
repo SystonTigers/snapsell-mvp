@@ -1,14 +1,16 @@
-import { Router } from "itty-router";
-const r = Router({ base: "/items" });
+import { Router } from 'itty-router';
+import { json } from '../lib/http';
 
-r.post("/ingest", async () => {
+const router = Router({ base: '/items' });
+
+router.post('/ingest', async () => {
   // TODO: accept uploads -> Supabase Storage -> media rows
-  return new Response(JSON.stringify({ ok: true, media: [] }), { headers: { "Content-Type": "application/json" }});
+  return json({ ok: true, media: [] });
 });
 
-r.post("/price", async () => {
+router.post('/price', async () => {
   // TODO: eBay sold comps -> median ± IQR
-  return new Response(JSON.stringify({ ok: true, price: { low: 10, mid: 15, high: 20 }}), { headers: { "Content-Type": "application/json" }});
+  return json({ ok: true, price: { low: 10, mid: 15, high: 20 } });
 });
 
-export default { handle: r.handle };
+export default { handle: router.handle };

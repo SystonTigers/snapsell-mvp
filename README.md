@@ -13,11 +13,18 @@ Mobile-first selling workflow for capturing items, pricing via comps, and publis
 ## Development
 
 ```bash
-# web
-cd apps/web && pnpm i && pnpm dev
+# install once at repo root
+pnpm install
 
-# worker
-cd ../worker && pnpm i && wrangler dev
+# run packages with Turborepo
+pnpm dev      # parallel dev servers where available
+pnpm lint     # eslint across all packages
+pnpm typecheck
+pnpm test
+
+# focus on a single app
+pnpm --filter snapsell-web dev
+pnpm --filter snapsell-worker dev
 ```
 
 ## Deploy
@@ -32,6 +39,6 @@ vercel --prod
 ## Environment
 
 - Vercel: `NEXT_PUBLIC_API_BASE`, `NEXT_PUBLIC_APP_NAME`
-- Cloudflare Worker secrets: `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE`, `JWT_SECRET` (later: `EBAY_CLIENT_ID`, `EBAY_CLIENT_SECRET`, `EBAY_REDIRECT_URI`)
+- Cloudflare Worker secrets: `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE`, `JWT_SECRET`, optional `EBAY_*` OAuth client details, and `CORS_ALLOWED_ORIGINS` (comma-separated Vercel origin list). Configure these with `wrangler secret put` — never commit them as plain env values.
 
 After first deploy, the Worker root should respond with `SnapSell API OK`.
