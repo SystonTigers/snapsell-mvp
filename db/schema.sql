@@ -127,6 +127,19 @@ create table public.relist_tasks (
   updated_at timestamptz default now()
 );
 
+create table public.delist_tasks (
+  id uuid primary key default gen_random_uuid(),
+  owner_id uuid not null,
+  platform text not null,
+  variant_id uuid references public.variants(id) on delete cascade,
+  platform_listing_id text,
+  status text default 'pending',
+  attempts integer default 0,
+  error text,
+  created_at timestamptz default now(),
+  updated_at timestamptz default now()
+);
+
 alter table public.variants
   add column auto_relist_facebook boolean default true,
   add column auto_relist_vinted boolean default true,
@@ -200,6 +213,7 @@ alter table public.stock_movements enable row level security;
 alter table public.sales enable row level security;
 alter table public.channel_listings enable row level security;
 alter table public.relist_tasks enable row level security;
+alter table public.delist_tasks enable row level security;
 
 create policy "items_owner_rw" on public.items
   for all using (owner_id = auth.uid()) with check (owner_id = auth.uid());
@@ -303,6 +317,8 @@ create policy "channel_listings_owner_rw" on public.channel_listings
 create policy "relist_tasks_owner_rw" on public.relist_tasks
   for all using (owner_id = auth.uid()) with check (owner_id = auth.uid());
 
+create policy "delist_tasks_owner_rw" on public.delist_tasks
+  for all using (owner_id = auth.uid()) with check (owner_id = auth.uid());
 -- Purchasing + recovery foundations
 create table public.purchases (
   id uuid primary key default gen_random_uuid(),
