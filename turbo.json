@@ -3,9 +3,6 @@
   "pipeline": {
     "build": {
       "dependsOn": ["^build"],
-      "outputs": ["dist/**", ".next/**"]
-    },
-    "dev": {},
       "outputs": ["dist/**", ".next/**", "build/**"]
     },
     "dev": {

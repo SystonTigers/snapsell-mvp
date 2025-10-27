@@ -1,145 +1,70 @@
 import { Router } from 'itty-router';
 
-import { ensureJson, HttpError, json, withRoute } from '../lib/http';
-import { bulkUpdatePriceQuantity } from '../lib/ebay';
-
-const router = Router({ base: '/channels' });
-
-router.post(
-  '/ebay/sync-qty',
-  withRoute(async (request) => {
-    const body = (await ensureJson(request)) as {
-      accessToken?: string;
-      marketplaceId?: string;
-      updates?: Array<{ offerId?: string; sku?: string; quantity?: number; price?: number; currency?: string }>;
-    };
-
-    if (!body.accessToken) {
-      throw new HttpError(400, 'accessToken required for eBay sync');
-    }
-
-    const updates = (body.updates ?? []).map((update) => ({
-      offerId: update.offerId,
-      sku: update.sku,
-      quantity: Number(update.quantity ?? 0),
-      price:
-        update.price != null && update.currency
-          ? { value: update.price.toFixed(2), currency: update.currency }
-          : undefined
-    }));
-
-    const filtered = updates.filter((update) => update.quantity >= 0 && (update.offerId || update.sku));
-    if (!filtered.length) {
-      throw new HttpError(400, 'No valid updates supplied');
-    }
-
-    const response = await bulkUpdatePriceQuantity(
-      { accessToken: body.accessToken, marketplaceId: body.marketplaceId },
-      filtered
-    );
-
-    return json({ ok: true, result: response });
-  })
-);
-
-router.post(
-  '/delist-all',
-  withRoute(async (request) => {
-    const body = (await ensureJson(request)) as { variantId?: string };
-    if (!body.variantId) {
-      throw new HttpError(400, 'variantId required');
-    }
-    // TODO: end eBay offer + enqueue delist_tasks for FB/Vinted/Gumtree
-    console.log('[channels] delist all', body.variantId);
-    return json({ ok: true, queued: true });
-  })
-);
-
-router.post(
-  '/map',
-  withRoute(async (request) => {
-    const body = await ensureJson(request);
-    console.log('[channels] map listing', body);
-    // TODO: persist mapping in channel_listings table
-    return json({ ok: true });
-  })
-);
-
-export default router;
-import { json } from '../lib/http';
+import { ensureJson, HttpError, json } from '../lib/http';
 import type { Env } from '../index';
 import { bulkUpdatePriceQuantity, resolveEbayAccessToken } from '../lib/ebay';
 
 const router = Router({ base: '/channels' });
 
 router.post('/ebay/sync-qty', async (request, env: Env) => {
-  const body = await request.json().catch(() => null);
-  if (!body || typeof body !== 'object') {
-    return json({ ok: false, error: 'Invalid JSON body' }, { status: 400 });
-  }
+  const body = await ensureJson<{ accountId?: string; offerIds?: string[]; skus?: string[]; quantity?: number; price?: { currency?: string; value?: number } }>(
+    request
+  );
 
-  const { accountId, offerIds, skus, quantity, price } = body as {
-    accountId?: string;
-    offerIds?: string[];
-    skus?: string[];
-    quantity?: number;
-    price?: { currency: string; value: number };
-  };
-
+  const { accountId, offerIds, skus, quantity, price } = body;
   if (!accountId) {
-    return json({ ok: false, error: 'accountId required' }, { status: 400 });
+    throw new HttpError(400, 'accountId required');
   }
-  if (typeof quantity !== 'number' || quantity < 0) {
-    return json({ ok: false, error: 'quantity must be a non-negative number' }, { status: 400 });
+  if (typeof quantity !== 'number' || Number.isNaN(quantity) || quantity < 0) {
+    throw new HttpError(400, 'quantity must be a non-negative number');
   }
   if ((!offerIds || offerIds.length === 0) && (!skus || skus.length === 0)) {
-    return json({ ok: false, error: 'Provide offerIds or skus to update' }, { status: 400 });
+    throw new HttpError(400, 'Provide offerIds or skus to update');
   }
 
   const accessToken = await resolveEbayAccessToken(env, accountId);
+  const normalizedPrice = price && typeof price.value === 'number' && price.currency
+    ? { currency: price.currency, value: price.value }
+    : undefined;
+
   const result = await bulkUpdatePriceQuantity({
     accessToken,
     quantity,
     offerIds,
     skus,
-    price,
+    price: normalizedPrice
   });
 
   return json({ ok: true, result });
 });
 
-router.post('/map', async (request: Request) => {
-  const body = await request.json().catch(() => null);
-  if (!body || typeof body !== 'object') {
-    return json({ ok: false, error: 'Invalid JSON body' }, { status: 400 });
-  }
-  const { platform, variantId, platformListingId, status, payload } = body as {
-    platform?: string;
-    variantId?: string;
-    platformListingId?: string;
-    status?: string;
-    payload?: unknown;
-  };
+router.post('/map', async (request) => {
+  const body = await ensureJson<{ platform?: string; variantId?: string; platformListingId?: string; status?: string; payload?: unknown }>(
+    request
+  );
+  const { platform, variantId, platformListingId, status, payload } = body;
 
   if (!platform || !variantId) {
-    return json({ ok: false, error: 'platform and variantId required' }, { status: 400 });
+    throw new HttpError(400, 'platform and variantId required');
   }
 
-  console.log('[channels] map listing', { platform, variantId, platformListingId, status, hasPayload: !!payload });
+  console.log('[channels] map listing', {
+    platform,
+    variantId,
+    platformListingId,
+    status,
+    hasPayload: payload != null
+  });
   return json({ ok: true });
 });
 
-router.post('/delist-all', async (request: Request) => {
-  const body = await request.json().catch(() => null);
-  if (!body || typeof body !== 'object') {
-    return json({ ok: false, error: 'Invalid JSON body' }, { status: 400 });
-  }
-  const { variantId } = body as { variantId?: string };
-  if (!variantId) {
-    return json({ ok: false, error: 'variantId required' }, { status: 400 });
+router.post('/delist-all', async (request) => {
+  const body = await ensureJson<{ variantId?: string }>(request);
+  if (!body.variantId) {
+    throw new HttpError(400, 'variantId required');
   }
 
-  console.log('[channels] requested delist-all', { variantId });
+  console.log('[channels] requested delist-all', { variantId: body.variantId });
   return json({ ok: true });
 });
 
