@@ -3,7 +3,7 @@
   "private": true,
   "scripts": {
     "clean": "rm -rf dist",
-    "build": "npm run clean && tsc --project tsconfig.json && cp src/popup.html dist/popup.html && cp manifest.json dist/manifest.json",
+    "build": "npm run clean && tsc --project tsconfig.json && cp manifest.json dist/manifest.json",
     "lint": "eslint --ext .ts src",
     "typecheck": "tsc --noEmit",
     "test": "vitest run --passWithNoTests"

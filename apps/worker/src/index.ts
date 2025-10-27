@@ -14,6 +14,7 @@ import auth from './routes/auth';
 import channels from './routes/channels';
 import extension from './routes/extension';
 import exportsCsv from './routes/exports';
+import health from './routes/health';
 import inventory from './routes/inventory';
 import items from './routes/items';
 import listings from './routes/listings';
@@ -22,6 +23,15 @@ import purchases from './routes/purchases';
 const router = Router();
 
 router.get('/', () => json({ ok: true, message: 'SnapSell API OK' }));
+router.get('/health', () => health.healthHandler());
+router.get('/ext/demoPayload', () =>
+  json({
+    title: 'Nike Air Max - Demo',
+    description: 'Lightly worn, size 9. Includes original box. Listed via SnapSell demo payload.',
+    price: 54.99,
+    currency: 'GBP'
+  })
+);
 
 function mountSubrouter(path: string, handler: typeof router.handle) {
   router.all(path, handler);

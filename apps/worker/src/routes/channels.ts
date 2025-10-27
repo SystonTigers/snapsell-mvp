@@ -3,6 +3,7 @@ import { Router } from 'itty-router';
 import { ensureJson, HttpError, json } from '../lib/http';
 import type { Env } from '../index';
 import { bulkUpdatePriceQuantity, resolveEbayAccessToken } from '../lib/ebay';
+import { supabaseFetch } from '../lib/db';
 
 const router = Router({ base: '/channels' });
 
@@ -66,6 +67,19 @@ router.post('/delist-all', async (request) => {
 
   console.log('[channels] requested delist-all', { variantId: body.variantId });
   return json({ ok: true });
+});
+
+router.get('/tenant/:tenantId', async (request, env: Env) => {
+  const { tenantId } = request.params as { tenantId: string };
+  if (!tenantId) {
+    throw new HttpError(400, 'tenantId required');
+  }
+
+  const channels = await supabaseFetch(env, {
+    path: 'channels',
+    query: { tenant_id: `eq.${tenantId}` }
+  });
+  return json({ channels });
 });
 
 router.get('/variant/:variantId', async (request) => {

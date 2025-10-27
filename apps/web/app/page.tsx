@@ -1,44 +1,58 @@
-import Link from 'next/link';
+import { HomeClient } from './components/home-client';
 
-const sections = [
-  { href: '/capture', label: 'Capture item' },
-  { href: '/items', label: 'Items' },
-  { href: '/publish', label: 'Publish' },
-  { href: '/admin/inventory', label: 'Inventory' },
-  { href: '/admin/sales', label: 'Sales' },
-  { href: '/admin/profit', label: 'Profit' },
-  { href: '/admin/purchases', label: 'Purchases' },
-  { href: '/admin/accounts', label: 'Accounts' },
-  { href: '/admin/settings', label: 'Settings' }
+type Channel = {
+  id: string;
+  name?: string;
+  status?: string;
+  type?: string;
+};
+
+type Item = {
+  id: string;
+  title?: string;
+  description?: string;
+  base_price?: number;
+  currency?: string;
+};
+
+const API_BASE = process.env.NEXT_PUBLIC_API_BASE ?? '';
+const FALLBACK_CHANNELS: Channel[] = [
+  { id: 'demo-ebay', name: 'Demo eBay', status: 'disconnected', type: 'ebay' }
 ];
+const FALLBACK_ITEM: Item = {
+  id: 'demo-item-1',
+  title: 'Nike Air Max (Demo)',
+  description: 'Lightly worn, size 9. Run pnpm seed to sync with Supabase.',
+  base_price: 49.99,
+  currency: 'GBP'
+};
 
-export default function Home() {
-  return (
-    <main>
-      <h1>SnapSell</h1>
-      <p style={{ color: '#4b5563', marginBottom: '1.5rem', maxWidth: 560 }}>
-        Mobile-first workflow to capture products, price them using smart signals, and publish
-        across sales channels while keeping stock, purchases, and recovery reporting in sync.
-      </p>
-      <nav style={{ display: 'grid', gap: '0.75rem', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))' }}>
-        {sections.map((section) => (
-          <Link
-            key={section.href}
-            href={section.href}
-            style={{
-              display: 'block',
-              padding: '0.85rem 1rem',
-              borderRadius: '0.75rem',
-              border: '1px solid #e5e7eb',
-              background: '#fff',
-              boxShadow: '0 10px 25px rgba(15, 23, 42, 0.04)',
-              fontWeight: 600
-            }}
-          >
-            {section.label}
-          </Link>
-        ))}
-      </nav>
-    </main>
-  );
+async function fetchJson<T>(path: string): Promise<T | null> {
+  if (!API_BASE) {
+    return null;
+  }
+  try {
+    const res = await fetch(`${API_BASE}${path}`, { cache: 'no-store' });
+    if (!res.ok) {
+      throw new Error(`HTTP ${res.status}`);
+    }
+    return (await res.json()) as T;
+  } catch (error) {
+    console.warn('Failed to fetch from worker', path, error);
+    return null;
+  }
+}
+
+export default async function Home() {
+  const [channelPayload, itemPayload] = await Promise.all([
+    fetchJson<{ channels?: Channel[] }>(`/channels/tenant/demo-tenant`),
+    fetchJson<{ items?: Item[] }>(`/items/tenant/demo-tenant/demo`)
+  ]);
+
+  const channels = channelPayload?.channels ?? FALLBACK_CHANNELS;
+  const item = itemPayload?.items?.[0] ?? FALLBACK_ITEM;
+  const dryRunValue = process.env.NEXT_PUBLIC_DRY_RUN ?? process.env.DRY_RUN ?? 'true';
+  const dryRunEnabled = String(dryRunValue).toLowerCase() === 'true';
+
+  return <HomeClient channels={channels} item={item} apiBase={API_BASE || null} dryRunEnabled={dryRunEnabled} />;
 }

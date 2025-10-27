@@ -1,14 +1,19 @@
 {
   "name": "snapsell-mvp",
   "private": true,
-  "packageManager": "pnpm@9.12.2",
+  "packageManager": "pnpm@9.12.0",
   "scripts": {
-    "dev": "turbo run dev --parallel",
-    "build": "turbo run build",
-    "lint": "turbo run lint",
-    "typecheck": "turbo run typecheck",
-    "test": "turbo run test",
-    "check:conflicts": "node scripts/check-conflicts.mjs"
+    "check:conflicts": "git diff --check",
+    "lint": "pnpm -r run lint",
+    "typecheck": "pnpm -r run typecheck",
+    "test": "pnpm -r run test",
+    "build": "pnpm -r run build",
+    "dev": "pnpm dev:all",
+    "dev:all": "pnpm -w run dev:worker & pnpm -w run dev:web",
+    "dev:worker": "pnpm --filter snapsell-worker dev",
+    "dev:web": "pnpm --filter snapsell-web dev",
+    "seed": "tsx scripts/seed.ts",
+    "smoke": "tsx scripts/smoke.ts"
   },
   "devDependencies": {
     "@types/node": "22.7.5",
@@ -19,6 +24,7 @@
     "eslint-config-prettier": "^9.1.0",
     "prettier": "^3.3.3",
     "turbo": "^2.2.3",
+    "tsx": "^4.17.0",
     "vitest": "^2.1.3"
   },
   "pnpm": {

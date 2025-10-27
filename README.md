@@ -1,81 +1,97 @@
 # SnapSell MVP
 
-Mobile-first workflow to capture items, enrich specifics, calculate condition-aware pricing using sold comps, and publish to marketplaces with inventory, sales, purchases, and recovery tracking.
+Production-ready skeleton for the SnapSell marketplace automation stack. The
+monorepo includes the Next.js web app, Cloudflare Worker API, and the MV3
+browser extension used for eBay autofill.
 
-## Monorepo layout
-
-```
-apps/
-  web/        # Next.js app router UI (capture, publish, admin dashboards)
-  worker/     # Cloudflare Worker API (pricing, purchases, channels, exports)
-  extension/  # Chrome/Edge MV3 extension for cross-list autofill
-packages/
-  shared/     # Types, Zod schemas, and mappers shared between surfaces
-db/
-  schema.sql  # Supabase schema with RLS, purchases, lots, recovery views
-  seed.sql    # Sample dataset for local development
-openapi.yaml  # API contract for the Worker routes
-```
-
-## Getting started
+## Quick start
 
 ```bash
-# Install dependencies (pnpm workspace)
+cp .env.example .env
 pnpm install
-
-# Run web app
-pnpm --filter snapsell-web dev
-# install once at repo root
-pnpm install
-
-# run packages with Turborepo
-pnpm dev      # parallel dev servers where available
-pnpm lint     # eslint across all packages
-pnpm typecheck
-pnpm test
-
-# focus on a single app
-pnpm --filter snapsell-web dev
-pnpm --filter snapsell-worker dev
+pnpm dev:all
+# Web → http://localhost:3000
+# Worker → http://localhost:8787
 ```
 
-# Run Worker locally
-pnpm --filter snapsell-worker dev
+### Useful commands
 
-# Build extension assets
-pnpm --filter snapsell-extension build
+```bash
+pnpm lint          # Workspace lint
+pnpm typecheck     # TypeScript across all packages
+pnpm test          # Test runner (pass-through)
+pnpm seed          # Execute supabase/seed.sql via service role
+pnpm smoke         # Health + pricing + dry-run verification
+pnpm --filter snapsell-extension build  # Build MV3 bundle
 ```
 
-### Environment configuration
+## Environment files
 
-* Web (`apps/web/.env.example`):
-  * `NEXT_PUBLIC_API_BASE` – Worker base URL.
-  * `NEXT_PUBLIC_APP_NAME` – UI branding.
-* Worker (`apps/worker/.dev.vars.example`): service role secrets are stored via Wrangler secrets in production (`SUPABASE_SERVICE_ROLE`, `JWT_SECRET`, eBay credentials). Local `.dev.vars` mirrors the shape for development only.
+| Location           | Example file              | Notes |
+| ------------------ | ------------------------- | ----- |
+| repo root          | `.env.example`            | Shared worker/web defaults |
+| `apps/web`         | `.env.example`            | Public variables consumed by Next.js |
+| `apps/worker`      | `.env.example`            | Wrangler `.dev.vars` helper |
 
-Follow the [Cloudflare Workers secrets guide](https://developers.cloudflare.com/workers/configuration/secrets/) when provisioning live credentials.
+Populate the variables and mirror production secrets via Wrangler/Vercel stores
+— never commit live credentials.
 
-## Database
+## Data + security
 
-Run `db/schema.sql` then `db/seed.sql` inside the Supabase SQL editor. All user-facing tables have Row Level Security enabled following Supabase best practices. Views provide stock, valuation, and recovery snapshots for CSV exports and dashboards.
+* `supabase/migrations` seeds the multi-tenant schema and RLS policies.
+* `supabase/seed.sql` bootstraps the demo tenant (`demo-tenant`), user, channel,
+  and Nike Air Max sample item.
+* `docs/RLS_MATRIX.md` tracks tenant isolation coverage.
 
-## Testing & CI
+Run the seed locally:
 
-GitHub Actions (`.github/workflows/ci.yml`) installs dependencies, lints, type-checks, and runs tests (Vitest to be added). Add unit coverage for pricing, description, and allocation logic under `apps/worker` as the project matures.
+```bash
+SUPABASE_URL=... SUPABASE_SERVICE_ROLE=... pnpm seed
+```
 
-## Worker endpoints
+## Worker capabilities
 
-See `openapi.yaml` for the full contract covering items, pricing, inventory movements, purchases, channels, extension task queues, and CSV exports for Google Sheets (`IMPORTDATA`).
+* `/health` for uptime probes.
+* `/items/price` surfaces the pricing helper with IQR outlier removal.
+* `/listings/ebay/publish` respects the `DRY_RUN` flag and logs `job_events`.
+* `/auth/ebay/callback` persists OAuth tokens for channels.
+* `/ext/demoPayload` powers the extension autofill payload.
+
+All requests emit structured JSON logs with `x-request-id` headers for
+traceability.
+
+## Web experience
+
+* First-run banner prompts channel connection when no active channels exist.
+* `/settings/channels` links to the eBay OAuth login.
+* Seeded item (Nike Air Max) is surfaced on the dashboard so teams can exercise
+  the happy-path (Price → List → Dry run success).
+
+## Smoke test
+
+`pnpm smoke` performs the minimum viable health-check flow:
+
+1. `GET /health`
+2. Verifies `demo-item-1` exists in Supabase.
+3. Calls the pricing helper.
+4. Calls the dry-run listing flow and asserts `dryRun: true`.
+
+The CI workflow executes the same script for regression prevention.
 
 ## Browser extension
 
-The MV3 extension polls Worker relist/delist task queues, autofills marketplace forms (Facebook Marketplace, Vinted, Gumtree), and writes completion states back via the `/extension` routes. Build output lives in `apps/extension/dist` for packaging.
+* Source lives in `apps/extension/`.
+* `pnpm --filter snapsell-extension build` emits `dist/` with manifest and JS.
+* Load the unpacked folder in Chrome to autofill demo payloads on eBay listing
+  forms via `/ext/demoPayload`.
 
-## Security & compliance
-- Vercel: `NEXT_PUBLIC_API_BASE`, `NEXT_PUBLIC_APP_NAME`
-- Cloudflare Worker secrets: `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE`, `JWT_SECRET`, optional `EBAY_*` OAuth client details, and `CORS_ALLOWED_ORIGINS` (comma-separated Vercel origin list). Configure these with `wrangler secret put` — never commit them as plain env values.
+## Integrations
 
-* Secrets live in Wrangler/Vercel secure stores—never commit plaintext credentials.
-* Supabase RLS enforces tenant isolation via `auth.uid()`.
-* Worker CORS defaults to deny, only allowing localhost development and Vercel deployments.
-* HTTP clients apply timeouts and retries with structured logging.
+See [`docs/INTEGRATIONS.md`](docs/INTEGRATIONS.md) for the eBay OAuth diagram
+and endpoint matrix.
+
+## Contributing
+
+* Conventional commits enforced via review.
+* `.github/pull_request_template.md` captures release hygiene checks.
+* CI (`.github/workflows/ci.yml`) runs lint, typecheck, tests, and smoke.

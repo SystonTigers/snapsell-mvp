@@ -7,4 +7,3 @@ node_modules
 .env.production
 .next
 apps/worker/.dev.vars
-pnpm-lock.yaml

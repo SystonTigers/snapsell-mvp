@@ -17,6 +17,13 @@ router.get('/tasks', async (request) => {
   return json({ tasks: [] });
 });
 
+router.post('/tasks', async (request) => {
+  const body = await request.json().catch(() => ({}));
+  const id = crypto.randomUUID();
+  console.log('[extension] queue task', { id, body });
+  return json({ ok: true, id });
+});
+
 router.post('/tasks/:id/start', async (request) => {
   const { id } = request.params as { id: string };
   console.log('[extension] start relist task', { id });
