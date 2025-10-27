@@ -25,6 +25,19 @@ pnpm install
 
 # Run web app
 pnpm --filter snapsell-web dev
+# install once at repo root
+pnpm install
+
+# run packages with Turborepo
+pnpm dev      # parallel dev servers where available
+pnpm lint     # eslint across all packages
+pnpm typecheck
+pnpm test
+
+# focus on a single app
+pnpm --filter snapsell-web dev
+pnpm --filter snapsell-worker dev
+```
 
 # Run Worker locally
 pnpm --filter snapsell-worker dev
@@ -59,6 +72,8 @@ See `openapi.yaml` for the full contract covering items, pricing, inventory move
 The MV3 extension polls Worker relist/delist task queues, autofills marketplace forms (Facebook Marketplace, Vinted, Gumtree), and writes completion states back via the `/extension` routes. Build output lives in `apps/extension/dist` for packaging.
 
 ## Security & compliance
+- Vercel: `NEXT_PUBLIC_API_BASE`, `NEXT_PUBLIC_APP_NAME`
+- Cloudflare Worker secrets: `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE`, `JWT_SECRET`, optional `EBAY_*` OAuth client details, and `CORS_ALLOWED_ORIGINS` (comma-separated Vercel origin list). Configure these with `wrangler secret put` — never commit them as plain env values.
 
 * Secrets live in Wrangler/Vercel secure stores—never commit plaintext credentials.
 * Supabase RLS enforces tenant isolation via `auth.uid()`.

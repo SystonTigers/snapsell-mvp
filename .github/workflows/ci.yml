@@ -7,6 +7,11 @@ on:
 
 jobs:
   build:
+    branches:
+      - main
+
+jobs:
+  quality:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -22,3 +27,12 @@ jobs:
       - run: pnpm lint
       - run: pnpm typecheck
       - run: pnpm test || echo "No tests configured"
+          version: 9.12.2
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+      - name: Lint
+        run: pnpm lint
+      - name: Typecheck
+        run: pnpm typecheck
+      - name: Test
+        run: pnpm test

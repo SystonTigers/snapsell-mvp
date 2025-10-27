@@ -3,5 +3,20 @@
   "extends": ["next", "next/core-web-vitals"],
   "parserOptions": {
     "project": true
+  "env": {
+    "browser": true,
+    "es2021": true,
+    "worker": true
+  },
+  "parser": "@typescript-eslint/parser",
+  "parserOptions": {
+    "sourceType": "module",
+    "ecmaVersion": "latest"
+  },
+  "plugins": ["@typescript-eslint"],
+  "extends": ["eslint:recommended", "plugin:@typescript-eslint/recommended", "prettier"],
+  "ignorePatterns": ["**/node_modules/**", "dist/**", "build/**"],
+  "rules": {
+    "@typescript-eslint/no-unused-vars": ["warn", { "argsIgnorePattern": "^_", "varsIgnorePattern": "^_" }]
   }
 }

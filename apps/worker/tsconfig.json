@@ -14,4 +14,8 @@
   },
   "include": ["src/**/*.ts"],
   "exclude": ["node_modules"]
+    "strict": true,
+    "types": ["@cloudflare/workers-types", "vitest/globals"]
+  },
+  "include": ["src", "test"]
 }

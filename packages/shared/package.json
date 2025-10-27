@@ -11,5 +11,9 @@
   },
   "dependencies": {
     "zod": "3.23.8"
+  "scripts": {
+    "lint": "eslint --ext .ts src",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
   }
 }
