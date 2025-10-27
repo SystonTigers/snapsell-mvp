@@ -6,7 +6,8 @@
     "build": "turbo run build",
     "dev": "turbo run dev --parallel",
     "lint": "turbo run lint",
-    "typecheck": "turbo run typecheck"
+    "typecheck": "turbo run typecheck",
+    "check:conflicts": "node scripts/check-conflicts.mjs"
   },
   "devDependencies": {
     "@types/node": "22.7.5",

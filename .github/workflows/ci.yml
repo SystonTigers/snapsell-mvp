@@ -18,6 +18,7 @@ jobs:
           node-version: 22
           cache: pnpm
       - run: pnpm install
+      - run: pnpm check:conflicts
       - run: pnpm lint
       - run: pnpm typecheck
       - run: pnpm test || echo "No tests configured"
