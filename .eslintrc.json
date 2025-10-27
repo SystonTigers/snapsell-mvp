@@ -1,5 +1,8 @@
 {
   "root": true,
+  "extends": ["next", "next/core-web-vitals"],
+  "parserOptions": {
+    "project": true
   "env": {
     "browser": true,
     "es2021": true,

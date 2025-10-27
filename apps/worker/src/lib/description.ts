@@ -1,60 +1,61 @@
-type DescInput = {
+export interface DescriptionInput {
   title?: string;
   brand?: string;
   model?: string;
   category?: string;
-  condition?: string;        // free text, normalize if needed
-  keyFeatures?: string[];    // bullets like size, color, edition, material
-  knownFlaws?: string[];     // “small scuff on left side”, etc.
-  included?: string[];       // “original box”, “charging cable”
-  notIncluded?: string[];    // “batteries not included”
-  care?: string[];           // care/washing/handling notes (apparel etc)
-  measurements?: string[];   // “pit to pit 21””, “inseam 30””
-  notes?: string;            // seller quick notes
-  shippingNote?: string;     // “ships next working day”
-  returnsNote?: string;      // “14-day returns if unused”
-  crossListNotice?: boolean; // include cross-listing warning
-};
-
-function bullet(items?: string[], label?: string) {
-  if (!items || !items.length) return '';
-  const body = items.map(x => `• ${x}`).join('\n');
-  return label ? `${label}\n${body}\n` : `${body}\n`;
+  condition?: string;
+  keyFeatures?: string[];
+  measurements?: string[];
+  care?: string[];
+  included?: string[];
+  notIncluded?: string[];
+  knownFlaws?: string[];
+  notes?: string;
+  shippingNote?: string;
+  returnsNote?: string;
+  crossListNotice?: boolean;
 }
 
-export function writeListingDescription(i: DescInput) {
-  const lines: string[] = [];
-  // 1) One-liner opener (plain, no hype)
-  const bits = [i.brand, i.model, i.category].filter(Boolean);
-  if (bits.length) lines.push(`${bits.join(' · ')}`);
+function section(title: string, body?: string | string[]): string | undefined {
+  if (!body || (Array.isArray(body) && !body.length)) return undefined;
+  const content = Array.isArray(body) ? body.map((item) => `• ${item}`).join('\n') : body.trim();
+  return `${title}\n${content}`;
+}
 
-  // 2) Condition line (concise, human)
-  if (i.condition) lines.push(`Condition: ${i.condition[0].toUpperCase()}${i.condition.slice(1)}`);
+export function buildHumanDescription(input: DescriptionInput): string {
+  const blocks: Array<string | undefined> = [];
+  const headerBits = [input.brand, input.model, input.category].filter(Boolean).join(' · ');
+  if (headerBits) {
+    blocks.push(headerBits);
+  }
 
-  // 3) Features / specifics
-  if (i.keyFeatures?.length) lines.push(bullet(i.keyFeatures, 'Details:').trim());
+  if (input.condition) {
+    blocks.push(section('Condition', input.condition));
+  }
 
-  // 4) Measurements (if apparel) and care
-  if (i.measurements?.length) lines.push(bullet(i.measurements, 'Measurements:').trim());
-  if (i.care?.length) lines.push(bullet(i.care, 'Care:').trim());
+  blocks.push(section('Details', input.keyFeatures));
+  blocks.push(section('Measurements', input.measurements));
+  blocks.push(section('Care', input.care));
+  blocks.push(section('Included', input.included));
+  blocks.push(section('Not included', input.notIncluded));
+  blocks.push(section('Notes / Flaws', input.knownFlaws));
 
-  // 5) What’s included / not included
-  if (i.included?.length) lines.push(bullet(i.included, 'Included:').trim());
-  if (i.notIncluded?.length) lines.push(bullet(i.notIncluded, 'Not included:').trim());
+  if (input.notes) {
+    blocks.push(input.notes.trim());
+  }
 
-  // 6) Honest flaws (clear, non-dramatic)
-  if (i.knownFlaws?.length) lines.push(bullet(i.knownFlaws, 'Notes:').trim());
+  const shippingBits = [input.shippingNote, input.returnsNote]
+    .filter(Boolean)
+    .map((value) => value!.trim());
+  if (shippingBits.length) {
+    blocks.push(section('Shipping / Returns', shippingBits.join('\n')));
+  }
 
-  // 7) Seller notes
-  if (i.notes) lines.push(i.notes.trim());
+  if (input.crossListNotice !== false) {
+    blocks.push(
+      'Listed on multiple marketplaces — availability may change; this listing may end if sold elsewhere.'
+    );
+  }
 
-  // 8) Shipping/returns
-  if (i.shippingNote) lines.push(i.shippingNote.trim());
-  if (i.returnsNote) lines.push(i.returnsNote.trim());
-
-  // 9) Cross-list notice
-  if (i.crossListNotice) lines.push('Listed on multiple marketplaces — availability may change. If it sells elsewhere, this listing may end.');
-
-  // Join with blank lines between sections
-  return lines.filter(Boolean).join('\n\n').trim();
+  return blocks.filter(Boolean).join('\n\n');
 }

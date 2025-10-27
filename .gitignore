@@ -1,6 +1,10 @@
 node_modules
+.pnpm-store
 .DS_Store
 .env
+.env.*
 .env.local
 .env.production
+.next
 apps/worker/.dev.vars
+pnpm-lock.yaml

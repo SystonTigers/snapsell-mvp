@@ -1,98 +1,131 @@
-export type ConditionCode = 'new'|'like_new'|'very_good'|'good'|'acceptable'|'for_parts';
+export type ConditionCode =
+  | 'new'
+  | 'like_new'
+  | 'very_good'
+  | 'good'
+  | 'acceptable'
+  | 'for_parts';
+
+export interface ComparableSale {
+  price: number;
+  condition?: string;
+}
+
+export interface PricingSignals {
+  comps: ComparableSale[];
+  targetCondition?: string;
+  cogs?: number;
+  targetMarginPct?: number;
+  rrp?: number;
+  expected?: number;
+  floorPctOverCogs?: number;
+  ceilPctOfRrp?: number;
+}
+
+export interface PricingResult {
+  suggested?: number;
+  inputs: PricingSignals;
+  condition: ConditionCode;
+  compsUsed: number;
+}
 
 export const CONDITION_MULTIPLIER: Record<ConditionCode, number> = {
-  new: 1.00,
+  new: 1,
   like_new: 0.95,
-  very_good: 0.90,
-  good: 0.80,
+  very_good: 0.9,
+  good: 0.8,
   acceptable: 0.65,
-  for_parts: 0.40,
+  for_parts: 0.4
 };
 
-// Map free-text → normalized condition
-export function normalizeCondition(input?: string): ConditionCode {
-  const s = (input || '').toLowerCase();
-  if (/(brand\s*new|sealed|unused|bnib)/.test(s)) return 'new';
-  if (/(like new|as new|open box)/.test(s)) return 'like_new';
-  if (/(very good|excellent)/.test(s)) return 'very_good';
-  if (/(good|light wear|minor wear)/.test(s)) return 'good';
-  if (/(acceptable|heavy wear|marks|scratches)/.test(s)) return 'acceptable';
-  if (/(spares|repairs|not working|fault|for parts)/.test(s)) return 'for_parts';
+export function normalizeCondition(input?: string | null): ConditionCode {
+  if (!input) return 'good';
+  const value = input.toLowerCase();
+  if (/(brand\s*new|sealed|unused|bnib)/.test(value)) return 'new';
+  if (/(like new|as new|open box)/.test(value)) return 'like_new';
+  if (/(very good|excellent)/.test(value)) return 'very_good';
+  if (/(good|light wear|minor wear)/.test(value)) return 'good';
+  if (/(acceptable|heavy wear|marks|scratches)/.test(value)) return 'acceptable';
+  if (/(spares|repairs|not working|fault|for parts)/.test(value)) return 'for_parts';
   return 'good';
 }
 
-export function median(nums: number[]): number | undefined {
-  const arr = nums.filter(x => Number.isFinite(x)).sort((a,b)=>a-b);
+export function median(values: number[]): number | undefined {
+  const arr = values.filter((value) => Number.isFinite(value)).sort((a, b) => a - b);
   if (!arr.length) return undefined;
-  const m = Math.floor(arr.length/2);
-  return arr.length % 2 ? arr[m] : (arr[m-1] + arr[m]) / 2;
+  const middle = Math.floor(arr.length / 2);
+  return arr.length % 2 ? arr[middle] : (arr[middle - 1] + arr[middle]) / 2;
 }
 
-export function iqrTrim(nums: number[], k = 1.5): number[] {
-  const arr = nums.filter(x => Number.isFinite(x)).sort((a,b)=>a-b);
+export function iqrTrim(values: number[], multiplier = 1.5): number[] {
+  const arr = values.filter((value) => Number.isFinite(value)).sort((a, b) => a - b);
   if (arr.length < 4) return arr;
-  const q1 = arr[Math.floor(arr.length*0.25)];
-  const q3 = arr[Math.floor(arr.length*0.75)];
+  const q1 = arr[Math.floor(arr.length * 0.25)];
+  const q3 = arr[Math.floor(arr.length * 0.75)];
   const iqr = q3 - q1;
-  const lo = q1 - k*iqr;
-  const hi = q3 + k*iqr;
-  return arr.filter(x => x >= lo && x <= hi);
+  const low = q1 - multiplier * iqr;
+  const high = q3 + multiplier * iqr;
+  return arr.filter((value) => value >= low && value <= high);
 }
 
-export function suggestPrice(opts: {
-  comps: { price: number; condition?: ConditionCode }[];
-  targetCondition?: ConditionCode;   // normalized input
-  cogs?: number;                     // unit cost (COGS)
-  targetMarginPct?: number;          // 0.35 = 35%
-  rrp?: number;
-  expected?: number;                 // expected resale (owner signal)
-  floorPctOverCogs?: number;         // e.g. 0.10 => price >= COGS * 1.10
-  ceilPctOfRrp?: number;             // e.g. 0.95 => price <= RRP * 0.95
-}) {
-  const {
-    comps, targetCondition='good', cogs, targetMarginPct,
-    rrp, expected, floorPctOverCogs=0.07, ceilPctOfRrp=1.00
-  } = opts;
+function snapPrice(value: number): number {
+  if (!Number.isFinite(value)) return value;
+  const floored = Math.max(0, Math.round(value));
+  if (floored <= 0) {
+    return Number(Math.max(0, value).toFixed(2));
+  }
+  const snapped = floored - 0.01;
+  return Number(snapped.toFixed(2));
+}
 
-  // 1) Condition-weight comps: prefer same condition; otherwise scale by multipliers to targetCondition
-  const multTarget = CONDITION_MULTIPLIER[targetCondition];
-  const adjusted = comps
-    .map(c => {
-      const m = CONDITION_MULTIPLIER[c.condition ?? 'good'];
-      // bring comp to "targetCondition" space
-      const scaled = c.price * (multTarget / m);
-      return scaled;
-    });
+export function suggestPrice(signals: PricingSignals): PricingResult {
+  const condition = normalizeCondition(signals.targetCondition);
+  const multiplierTarget = CONDITION_MULTIPLIER[condition];
+  const adjustedComps = signals.comps.map((comp) => {
+    const normalized = normalizeCondition(comp.condition);
+    const compMultiplier = CONDITION_MULTIPLIER[normalized];
+    return compMultiplier ? comp.price * (multiplierTarget / compMultiplier) : comp.price;
+  });
 
-  // 2) Robust central tendency (IQR-trimmed median)
-  const trimmed = iqrTrim(adjusted);
+  const trimmed = iqrTrim(adjustedComps);
   const compsMid = median(trimmed);
 
-  // 3) Other signals
-  const marginBased = (cogs != null && targetMarginPct != null && targetMarginPct < 0.95)
-    ? +(cogs / (1 - targetMarginPct)) : undefined;
+  const marginPrice =
+    signals.cogs != null &&
+    signals.targetMarginPct != null &&
+    signals.targetMarginPct > 0 &&
+    signals.targetMarginPct < 0.95
+      ? signals.cogs / (1 - signals.targetMarginPct)
+      : undefined;
 
-  const candidates = [compsMid, marginBased, opts.expected, rrp]
-    .filter((x): x is number => typeof x === 'number' && Number.isFinite(x));
+  const candidates = [compsMid, marginPrice, signals.expected, signals.rrp]
+    .filter((value): value is number => typeof value === 'number' && Number.isFinite(value));
 
-  if (!candidates.length) return undefined;
-
-  // 4) Combine signals by median (stable), then apply floors/ceilings
-  let p = median(candidates)!;
-
-  // Floor: at least COGS * (1 + floorPctOverCogs)
-  if (cogs != null) {
-    const floor = cogs * (1 + floorPctOverCogs);
-    if (p < floor) p = floor;
+  let suggested = median(candidates ?? []);
+  if (suggested == null) {
+    return { suggested: undefined, inputs: signals, condition, compsUsed: trimmed.length };
   }
 
-  // Ceiling: cap vs RRP if provided
-  if (rrp != null) {
-    const ceil = rrp * ceilPctOfRrp;
-    if (p > ceil) p = ceil;
+  if (signals.cogs != null) {
+    const floorMultiplier = signals.floorPctOverCogs ?? 0.07;
+    const floor = signals.cogs * (1 + floorMultiplier);
+    if (suggested < floor) {
+      suggested = floor;
+    }
   }
 
-  // 5) Snap to sensible endings (e.g., .99)
-  const snapped = Math.max(0, Math.round(p)) - 0.01; // 19.99, 29.99…
-  return +snapped.toFixed(2);
+  if (signals.rrp != null) {
+    const ceilingMultiplier = signals.ceilPctOfRrp ?? 1;
+    const ceiling = signals.rrp * ceilingMultiplier;
+    if (suggested > ceiling) {
+      suggested = ceiling;
+    }
+  }
+
+  return {
+    suggested: snapPrice(suggested),
+    inputs: signals,
+    condition,
+    compsUsed: trimmed.length
+  };
 }

@@ -1,10 +1,23 @@
-import { Router } from "itty-router";
-const r = Router({ base: "/auth" });
+import { Router } from 'itty-router';
 
-// TODO: redirect to eBay OAuth authorize with scopes
-r.get("/ebay/login", () => new Response("Not implemented", { status: 501 }));
+import { json, withRoute } from '../lib/http';
 
-// TODO: exchange code, store token in Supabase.accounts
-r.get("/ebay/callback", () => new Response("Not implemented", { status: 501 }));
+const router = Router({ base: '/auth' });
 
-export default { handle: r.handle };
+router.get(
+  '/ebay/login',
+  withRoute(async () => {
+    // TODO: generate PKCE verifier/challenge + redirect to eBay OAuth
+    return json({ ok: false, message: 'eBay OAuth not implemented yet' }, { status: 501 });
+  })
+);
+
+router.get(
+  '/ebay/callback',
+  withRoute(async () => {
+    // TODO: exchange code for token and store in Supabase accounts table
+    return json({ ok: false, message: 'eBay OAuth callback not implemented yet' }, { status: 501 });
+  })
+);
+
+export default router;

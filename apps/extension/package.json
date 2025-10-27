@@ -2,6 +2,8 @@
   "name": "snapsell-extension",
   "private": true,
   "scripts": {
+    "clean": "rm -rf dist",
+    "build": "npm run clean && tsc --project tsconfig.json && cp src/popup.html dist/popup.html && cp manifest.json dist/manifest.json"
     "build": "echo Build step TBD",
     "lint": "eslint --ext .ts src",
     "typecheck": "tsc --noEmit",

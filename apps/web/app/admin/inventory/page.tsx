@@ -1,3 +1,10 @@
+const mockInventory = [
+  { variantSku: 'SS-0001', title: 'Nintendo Switch Console', onHand: 4, value: 440.0 },
+  { variantSku: 'SS-0002', title: 'iPhone 13 128GB Blue', onHand: 2, value: 520.0 }
+];
+
+export default function InventoryPage() {
+  const totalValue = mockInventory.reduce((sum, row) => sum + row.value, 0);
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
@@ -108,91 +115,40 @@ export default function Inventory() {
   }
 
   return (
-    <main className="p-6 space-y-6">
-      <header className="space-y-2">
-        <h2 className="text-2xl font-semibold">Inventory</h2>
-        <p className="text-sm text-slate-500">
-          Track on-hand stock, auto-relist preferences, and channel listings. Toggle relist automation per
-          marketplace or generate a manual assisted draft when needed.
-        </p>
-      </header>
-
-      {loading ? <p>Loading inventory…</p> : null}
-      {notice ? <p className="text-sm text-emerald-600">{notice}</p> : null}
-
-      <section className="overflow-x-auto">
-        <table className="min-w-full border-separate border-spacing-y-2">
-          <thead>
-            <tr className="text-left text-xs uppercase tracking-wide text-slate-500">
-              <th className="px-3 py-2">Variant</th>
-              <th className="px-3 py-2">On hand</th>
-              <th className="px-3 py-2">Auto-relist</th>
-              <th className="px-3 py-2">Active listings</th>
-              <th className="px-3 py-2">Actions</th>
+    <main>
+      <h1>Inventory</h1>
+      <p style={{ color: '#4b5563' }}>
+        Snapshot is powered by `vw_inventory_valuation` combining FIFO lots and remaining quantity.
+        Adjustments flow through `stock_movements` for auditability.
+      </p>
+      <table>
+        <thead>
+          <tr>
+            <th>Variant</th>
+            <th>Title</th>
+            <th>On hand</th>
+            <th>Inventory value</th>
+          </tr>
+        </thead>
+        <tbody>
+          {mockInventory.map((row) => (
+            <tr key={row.variantSku}>
+              <td>{row.variantSku}</td>
+              <td>{row.title}</td>
+              <td>{row.onHand}</td>
+              <td>£{row.value.toFixed(2)}</td>
             </tr>
-          </thead>
-          <tbody>
-            {rows.map((row) => (
-              <tr key={row.variantId} className="bg-white shadow-sm">
-                <td className="px-3 py-2">
-                  <div className="font-medium">{row.title}</div>
-                  <div className="text-xs text-slate-500">{row.sku} • {row.variantSku}</div>
-                </td>
-                <td className="px-3 py-2 text-sm">{row.onHand}</td>
-                <td className="px-3 py-2">
-                  <div className="flex flex-col gap-1 text-xs">
-                    {activePlatforms.map((platform) => {
-                      const key = (
-                        platform === "facebook"
-                          ? "autoRelistFacebook"
-                          : platform === "vinted"
-                          ? "autoRelistVinted"
-                          : "autoRelistGumtree"
-                      ) as const;
-                      const label = platform.charAt(0).toUpperCase() + platform.slice(1);
-                      const checked = row[key];
-                      return (
-                        <label key={platform} className="flex items-center gap-2">
-                          <input
-                            type="checkbox"
-                            checked={checked}
-                            onChange={(ev) => updateToggle(row.variantId, key, ev.target.checked)}
-                          />
-                          {label}
-                        </label>
-                      );
-                    })}
-                  </div>
-                </td>
-                <td className="px-3 py-2 text-xs text-slate-600">
-                  {row.listings && row.listings.length ? (
-                    <ul className="space-y-1">
-                      {row.listings.map((listing) => (
-                        <li key={listing.id}>{formatListing(listing)}</li>
-                      ))}
-                    </ul>
-                  ) : (
-                    <span>No active listings</span>
-                  )}
-                </td>
-                <td className="px-3 py-2">
-                  <div className="flex flex-col gap-2 text-xs">
-                    {activePlatforms.map((platform) => (
-                      <button
-                        key={platform}
-                        className="rounded bg-slate-900 px-3 py-1 text-white hover:bg-slate-700"
-                        onClick={() => void generateDraft(row, platform)}
-                      >
-                        Draft for {platform}
-                      </button>
-                    ))}
-                  </div>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </section>
+          ))}
+        </tbody>
+        <tfoot>
+          <tr>
+            <td colSpan={3} style={{ fontWeight: 600 }}>
+              Total
+            </td>
+            <td>£{totalValue.toFixed(2)}</td>
+          </tr>
+        </tfoot>
+      </table>
     </main>
   );
 }
