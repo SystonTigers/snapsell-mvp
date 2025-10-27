@@ -1,20 +1,25 @@
 {
   "name": "snapsell-mvp",
   "private": true,
-  "packageManager": "pnpm@9.12.0",
+  "packageManager": "pnpm@9.12.2",
   "scripts": {
-    "build": "turbo run build",
     "dev": "turbo run dev --parallel",
+    "build": "turbo run build",
     "lint": "turbo run lint",
     "typecheck": "turbo run typecheck",
+    "test": "turbo run test",
     "check:conflicts": "node scripts/check-conflicts.mjs"
   },
   "devDependencies": {
     "@types/node": "22.7.5",
+    "@typescript-eslint/eslint-plugin": "^8.12.2",
+    "@typescript-eslint/parser": "^8.12.2",
     "eslint": "8.57.1",
     "eslint-config-next": "14.2.6",
-    "prettier": "3.3.3",
-    "turbo": "2.2.3"
+    "eslint-config-prettier": "^9.1.0",
+    "prettier": "^3.3.3",
+    "turbo": "^2.2.3",
+    "vitest": "^2.1.3"
   },
   "pnpm": {
     "packageExtensions": {
@@ -29,21 +34,4 @@
     "apps/*",
     "packages/*"
   ]
-  "packageManager": "pnpm@9.12.2",
-  "scripts": {
-    "dev": "turbo run dev --parallel",
-    "build": "turbo run build",
-    "lint": "turbo run lint",
-    "typecheck": "turbo run typecheck",
-    "test": "turbo run test"
-  },
-  "devDependencies": {
-    "@typescript-eslint/eslint-plugin": "^8.8.1",
-    "@typescript-eslint/parser": "^8.8.1",
-    "eslint": "^9.12.0",
-    "eslint-config-prettier": "^9.1.0",
-    "prettier": "^3.3.3",
-    "turbo": "^2.2.3",
-    "vitest": "^2.1.3"
-  }
 }

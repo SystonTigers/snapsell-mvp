@@ -1,4 +1,4 @@
-import { createEnvConfig, type ValidatedEnv } from './env';
+import type { EnvChecked } from './env';
 
 export class HttpError extends Error {
   public readonly status: number;
@@ -12,94 +12,6 @@ export class HttpError extends Error {
   }
 }
 
-export type RouteHandler = (
-  request: Request,
-  env: ValidatedEnv,
-  ctx: ExecutionContext
-) => Promise<Response> | Response;
-
-function isWildcardMatch(origin: string, rule: string): boolean {
-  if (rule === '*') return true;
-  if (rule.includes('*')) {
-    const escaped = rule.replace(/[.*+?^${}()|[\]\\]/g, '\\$&').replace(/\\\*/g, '.*');
-    const regex = new RegExp(`^${escaped}$`, 'i');
-    return regex.test(origin);
-  }
-  return origin === rule;
-}
-
-function appendCorsHeaders(request: Request, response: Response, env: ValidatedEnv): Response {
-  const origin = request.headers.get('Origin');
-  const headers = new Headers(response.headers);
-  headers.append('Vary', 'Origin');
-
-  if (origin && env.allowedOrigins.some((rule) => isWildcardMatch(origin, rule))) {
-    headers.set('Access-Control-Allow-Origin', origin);
-    headers.set('Access-Control-Allow-Credentials', 'true');
-  }
-
-  headers.set('Access-Control-Allow-Methods', 'GET,POST,PUT,PATCH,DELETE,OPTIONS');
-  headers.set(
-    'Access-Control-Allow-Headers',
-    request.headers.get('Access-Control-Request-Headers') ?? 'Content-Type, Authorization'
-  );
-
-  return new Response(response.body, {
-    status: response.status,
-    statusText: response.statusText,
-    headers
-  });
-}
-
-export function json(data: unknown, init: ResponseInit = {}): Response {
-  const headers = new Headers(init.headers ?? {});
-  headers.set('Content-Type', 'application/json');
-  return new Response(JSON.stringify(data), {
-    ...init,
-    headers
-  });
-}
-
-export function error(status: number, message: string, details?: unknown): Response {
-  return json(
-    {
-      ok: false,
-      error: message,
-      details
-    },
-    { status }
-  );
-}
-
-export function withRoute(handler: RouteHandler): RouteHandler {
-  return async (request, rawEnv, ctx) => {
-    const env = rawEnv.allowedOrigins ? rawEnv : createEnvConfig(rawEnv as unknown as Record<string, string | undefined>);
-
-    if (request.method === 'OPTIONS') {
-      const optionsResponse = new Response(null, { status: 204 });
-      return appendCorsHeaders(request, optionsResponse, env);
-    }
-
-    try {
-      const response = await handler(request, env, ctx);
-      return appendCorsHeaders(request, response, env);
-    } catch (err) {
-      if (err instanceof HttpError) {
-        return appendCorsHeaders(request, error(err.status, err.message, err.details), env);
-      }
-      console.error('Route error', err);
-      return appendCorsHeaders(request, error(500, 'Internal Server Error'), env);
-    }
-  };
-}
-
-export function ensureJson(request: Request): Promise<unknown> {
-  return request.json().catch(() => {
-    throw new HttpError(400, 'Invalid JSON payload');
-  });
-}
-import type { EnvChecked } from './env';
-
 export const json = (data: unknown, init: ResponseInit = {}): Response => {
   const headers = new Headers(init.headers ?? {});
   if (!headers.has('content-type')) {
@@ -108,8 +20,16 @@ export const json = (data: unknown, init: ResponseInit = {}): Response => {
   return new Response(JSON.stringify(data), { ...init, headers });
 };
 
+export const ensureJson = async <T = unknown>(request: Request): Promise<T> => {
+  try {
+    return (await request.json()) as T;
+  } catch (error) {
+    throw new HttpError(400, 'Invalid JSON payload');
+  }
+};
+
 export const withErrors = <E extends EnvChecked>(
-  handler: (request: Request, env: EnvChecked & E, ctx: ExecutionContext) => Promise<Response | void> | Response | void,
+  handler: (request: Request, env: EnvChecked & E, ctx: ExecutionContext) => Promise<Response | void> | Response | void
 ) => {
   return async (request: Request, env: EnvChecked & E, ctx: ExecutionContext): Promise<Response> => {
     try {
@@ -119,6 +39,9 @@ export const withErrors = <E extends EnvChecked>(
       }
       return json({ ok: false, error: 'Not Found' }, { status: 404 });
     } catch (error) {
+      if (error instanceof HttpError) {
+        return json({ ok: false, error: error.message, details: error.details }, { status: error.status });
+      }
       const message = error instanceof Error ? error.message : String(error);
       console.error('[worker] request failed', message);
       return json({ ok: false, error: 'Internal error' }, { status: 500 });
@@ -126,26 +49,47 @@ export const withErrors = <E extends EnvChecked>(
   };
 };
 
-export type CorsContext = {
-  origin: string | null;
-  isCrossOrigin: boolean;
+type Wildcard = string;
+
+type CorsRule = string | Wildcard;
+
+const matchesOrigin = (origin: string, rule: CorsRule): boolean => {
+  if (rule === '*' || origin === rule) {
+    return true;
+  }
+  if (rule.includes('*')) {
+    const escaped = rule.replace(/[.*+?^${}()|[\]\\]/g, '\\$&').replace(/\\\*/g, '.*');
+    const regex = new RegExp(`^${escaped}$`, 'i');
+    return regex.test(origin);
+  }
+  return false;
 };
 
-export const enforceCors = (request: Request, allowedOrigins: string[] | undefined): Response | CorsContext => {
+export type CorsContext = {
+  origin: string | null;
+  allowOrigin: boolean;
+};
+
+export const enforceCors = (request: Request, allowedOrigins: readonly string[]): Response | CorsContext => {
   const origin = request.headers.get('origin');
   if (!origin) {
-    return { origin: null, isCrossOrigin: false };
+    return { origin: null, allowOrigin: false };
   }
 
-  if (!allowedOrigins || allowedOrigins.length === 0 || !allowedOrigins.includes(origin)) {
+  if (!allowedOrigins.length) {
     return new Response('Forbidden', { status: 403 });
   }
 
-  return { origin, isCrossOrigin: true };
+  const isAllowed = allowedOrigins.some((rule) => matchesOrigin(origin, rule));
+  if (!isAllowed) {
+    return new Response('Forbidden', { status: 403 });
+  }
+
+  return { origin, allowOrigin: true };
 };
 
 export const applyCorsHeaders = (response: Response, cors: CorsContext): Response => {
-  if (!cors.isCrossOrigin || !cors.origin) {
+  if (!cors.allowOrigin || !cors.origin) {
     return response;
   }
   response.headers.set('Access-Control-Allow-Origin', cors.origin);
@@ -156,7 +100,7 @@ export const applyCorsHeaders = (response: Response, cors: CorsContext): Respons
 
 export const preflight = (cors: CorsContext): Response => {
   const response = new Response(null, { status: 204 });
-  if (cors.isCrossOrigin && cors.origin) {
+  if (cors.allowOrigin && cors.origin) {
     response.headers.set('Access-Control-Allow-Origin', cors.origin);
     response.headers.set('Access-Control-Allow-Credentials', 'true');
   }
@@ -173,10 +117,7 @@ export const enforceBodyLimit = (request: Request, limitBytes: number, exemption
   }
   const contentLength = request.headers.get('content-length');
   if (contentLength && Number(contentLength) > limitBytes) {
-    return json(
-      { ok: false, error: `Request body too large (max ${limitBytes} bytes)` },
-      { status: 413 },
-    );
+    return json({ ok: false, error: `Request body too large (max ${limitBytes} bytes)` }, { status: 413 });
   }
   return null;
 };
@@ -189,7 +130,7 @@ export interface RateLimitResult {
 export const rateLimit = async (
   kv: KVNamespace | undefined,
   key: string,
-  { windowSeconds, max }: { windowSeconds: number; max: number },
+  { windowSeconds, max }: { windowSeconds: number; max: number }
 ): Promise<RateLimitResult> => {
   if (!kv) {
     return { allowed: true };

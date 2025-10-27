@@ -1,58 +1,3 @@
-import { HttpError } from './http';
-
-const INVENTORY_ENDPOINT = 'https://api.ebay.com/sell/inventory/v1/bulk_update_price_quantity';
-
-export interface EbayCredentials {
-  accessToken: string;
-  marketplaceId?: string;
-}
-
-export interface EbayQuantityUpdate {
-  offerId?: string;
-  sku?: string;
-  quantity: number;
-  price?: {
-    currency: string;
-    value: string;
-  };
-}
-
-export interface BulkUpdateResult {
-  responses: Array<{ offerId?: string; sku?: string; statusCode: number; errors?: unknown[] }>;
-}
-
-export async function bulkUpdatePriceQuantity(
-  credentials: EbayCredentials,
-  updates: EbayQuantityUpdate[],
-  opts: { sandbox?: boolean } = {}
-): Promise<BulkUpdateResult> {
-  if (!updates.length) {
-    throw new HttpError(400, 'No updates provided for eBay quantity sync');
-  }
-
-  const endpoint = opts.sandbox
-    ? INVENTORY_ENDPOINT.replace('api.ebay.com', 'api.sandbox.ebay.com')
-    : INVENTORY_ENDPOINT;
-
-  const res = await fetch(endpoint, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      Authorization: `Bearer ${credentials.accessToken}`,
-      ...(credentials.marketplaceId ? { 'X-EBAY-C-MARKETPLACE-ID': credentials.marketplaceId } : {})
-    },
-    body: JSON.stringify({ requests: updates })
-  });
-
-  const text = await res.text();
-  const json = text ? JSON.parse(text) : {};
-
-  if (!res.ok) {
-    throw new HttpError(res.status, 'eBay bulkUpdatePriceQuantity failed', json);
-  }
-
-  return json as BulkUpdateResult;
-}
 import type { EnvChecked } from './env';
 
 const EBAY_API_BASE = 'https://apix.ebay.com';
@@ -78,9 +23,9 @@ export const resolveEbayAccessToken = async (env: EnvChecked, accountId: string)
       apikey: env.SUPABASE_SERVICE_ROLE,
       authorization: `Bearer ${env.SUPABASE_SERVICE_ROLE}`,
       'content-type': 'application/json',
-      'accept': 'application/json',
+      accept: 'application/json'
     },
-    cf: { cacheEverything: false },
+    cf: { cacheEverything: false }
   });
 
   if (!res.ok) {
@@ -102,14 +47,14 @@ export const bulkUpdatePriceQuantity = async ({
   offerIds,
   skus,
   price,
-  baseUrl = EBAY_API_BASE,
+  baseUrl = EBAY_API_BASE
 }: BulkUpdateOptions) => {
-  const requests = [] as Array<{
+  const requests: Array<{
     offerId?: string;
     sku?: string;
     shipToLocationAvailability: { quantity: number };
     pricing?: { price: PricePayload };
-  }>;
+  }> = [];
 
   const normalizedQuantity = Math.max(0, Math.floor(quantity));
 
@@ -117,14 +62,14 @@ export const bulkUpdatePriceQuantity = async ({
     requests.push({
       offerId,
       shipToLocationAvailability: { quantity: normalizedQuantity },
-      ...(price ? { pricing: { price } } : {}),
+      ...(price ? { pricing: { price } } : {})
     });
   }
   for (const sku of skus ?? []) {
     requests.push({
       sku,
       shipToLocationAvailability: { quantity: normalizedQuantity },
-      ...(price ? { pricing: { price } } : {}),
+      ...(price ? { pricing: { price } } : {})
     });
   }
 
@@ -138,9 +83,9 @@ export const bulkUpdatePriceQuantity = async ({
     headers: {
       Authorization: `Bearer ${accessToken}`,
       'Content-Type': 'application/json',
-      'Accept': 'application/json',
+      Accept: 'application/json'
     },
-    body: JSON.stringify({ requests }),
+    body: JSON.stringify({ requests })
   });
 
   const text = await response.text();
