@@ -118,7 +118,7 @@ create table public.sales (
   shipping_cost numeric default 0,
   other_costs numeric default 0,
   cogs numeric default 0,
-  lot_id uuid references public.inventory_lots(id),
+  lot_id uuid,
   recovery_applied numeric default 0,
   sold_at timestamptz default now(),
   created_at timestamptz default now()
@@ -180,6 +180,10 @@ create table public.inventory_lots (
   created_at timestamptz default now(),
   updated_at timestamptz default now()
 );
+
+alter table public.sales
+  add constraint fk_sales_inventory_lot foreign key (lot_id)
+    references public.inventory_lots(id);
 
 -- -----------------------------------------------------------------------------
 -- 4. Channels, tasks
