@@ -1,9 +1,17 @@
 {
   "compilerOptions": {
-    "lib": ["ES2021", "WebWorker"],
+    "lib": ["ES2022", "WebWorker"],
     "module": "ESNext",
-    "target": "ES2021",
     "moduleResolution": "Bundler",
-    "strict": true
-  }
+    "target": "ES2022",
+    "strict": true,
+    "rootDir": "src",
+    "types": ["@cloudflare/workers-types"],
+    "baseUrl": "./src",
+    "paths": {
+      "@snapsell/shared/*": ["../../packages/shared/src/*"]
+    }
+  },
+  "include": ["src/**/*.ts"],
+  "exclude": ["node_modules"]
 }

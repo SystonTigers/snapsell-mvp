@@ -1,1 +1,15 @@
-{ "name": "snapsell-shared", "private": true, "version": "0.0.1" }
+{
+  "name": "snapsell-shared",
+  "private": true,
+  "version": "0.0.1",
+  "main": "src/index.ts",
+  "exports": {
+    ".": {
+      "types": "./src/types.ts",
+      "default": "./src/index.ts"
+    }
+  },
+  "dependencies": {
+    "zod": "3.23.8"
+  }
+}

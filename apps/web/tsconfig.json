@@ -1,11 +1,13 @@
 {
+  "extends": "@tsconfig/next/tsconfig.json",
   "compilerOptions": {
-    "target": "ES2021",
-    "lib": ["ES2021", "DOM"],
-    "module": "ESNext",
-    "moduleResolution": "Bundler",
-    "strict": true,
-    "jsx": "react-jsx",
-    "baseUrl": "."
-  }
+    "baseUrl": ".",
+    "paths": {
+      "@/lib/*": ["lib/*"],
+      "@/components/*": ["components/*"],
+      "@/types/*": ["../packages/shared/src/*"]
+    }
+  },
+  "include": ["next-env.d.ts", "**/*.ts", "**/*.tsx"],
+  "exclude": ["node_modules"]
 }

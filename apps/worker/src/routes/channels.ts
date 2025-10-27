@@ -1,88 +1,68 @@
-import { Router } from "itty-router";
-const r = Router({ base: "/channels" });
+import { Router } from 'itty-router';
 
-r.post("/ebay/sync-qty", async (req: Request) => {
-  const body = await req.json().catch(() => ({}));
-  const { variantId, newQty } = body as { variantId?: string; newQty?: number };
+import { ensureJson, HttpError, json, withRoute } from '../lib/http';
+import { bulkUpdatePriceQuantity } from '../lib/ebay';
 
-  if (!variantId || typeof newQty !== "number") {
-    return new Response(JSON.stringify({ ok: false, error: "variantId and newQty required" }), {
-      status: 400,
-      headers: { "Content-Type": "application/json" }
-    });
-  }
+const router = Router({ base: '/channels' });
 
-  // TODO: integrate with eBay Sell API and persist last_synced_qty in channel_listings
-  console.log("[channels] sync eBay quantity", { variantId, newQty });
+router.post(
+  '/ebay/sync-qty',
+  withRoute(async (request) => {
+    const body = (await ensureJson(request)) as {
+      accessToken?: string;
+      marketplaceId?: string;
+      updates?: Array<{ offerId?: string; sku?: string; quantity?: number; price?: number; currency?: string }>;
+    };
 
-  return new Response(JSON.stringify({ ok: true, variantId, newQty }), {
-    headers: { "Content-Type": "application/json" }
-  });
-});
+    if (!body.accessToken) {
+      throw new HttpError(400, 'accessToken required for eBay sync');
+    }
 
-r.post("/map", async (req: Request) => {
-  const body = await req.json().catch(() => ({}));
-  const { platform, variantId, platformListingId, status, payload } = body as {
-    platform?: string;
-    variantId?: string;
-    platformListingId?: string;
-    status?: string;
-    payload?: unknown;
-  };
+    const updates = (body.updates ?? []).map((update) => ({
+      offerId: update.offerId,
+      sku: update.sku,
+      quantity: Number(update.quantity ?? 0),
+      price:
+        update.price != null && update.currency
+          ? { value: update.price.toFixed(2), currency: update.currency }
+          : undefined
+    }));
 
-  if (!platform || !variantId) {
-    return new Response(JSON.stringify({ ok: false, error: "platform and variantId required" }), {
-      status: 400,
-      headers: { "Content-Type": "application/json" }
-    });
-  }
+    const filtered = updates.filter((update) => update.quantity >= 0 && (update.offerId || update.sku));
+    if (!filtered.length) {
+      throw new HttpError(400, 'No valid updates supplied');
+    }
 
-  console.log("[channels] map listing", { platform, variantId, platformListingId, status, payload });
-  // TODO: upsert into channel_listings table via Supabase service role
+    const response = await bulkUpdatePriceQuantity(
+      { accessToken: body.accessToken, marketplaceId: body.marketplaceId },
+      filtered
+    );
 
-  return new Response(JSON.stringify({ ok: true }), {
-    headers: { "Content-Type": "application/json" }
-  });
-});
-
-r.get("/variant/:variantId", async (req) => {
-  const { variantId } = req.params as { variantId: string };
-  if (!variantId) {
-    return new Response(JSON.stringify({ listings: [] }), {
-      headers: { "Content-Type": "application/json" }
-    });
-  }
-
-  // TODO: query vw_variant_channels for the specific variant via Supabase REST
-  console.log("[channels] fetch variant listings", { variantId });
-
-  return new Response(JSON.stringify({ listings: [] }), {
-    headers: { "Content-Type": "application/json" }
-  });
-});
-
-const r = Router({ base: "/channels" });
-
-// Called after sale: decrement eBay quantity or end listing
-// POST /channels/ebay/sync-qty { variantId, newQty }
-r.post("/ebay/sync-qty", async () => new Response(JSON.stringify({ ok: true })));
-
-// POST /channels/delist-all { variantId }
-// -> For ebay: end listing (or set qty 0). For FB/Vinted/Gumtree: insert delist_tasks for each active listing.
-r.post("/delist-all", async () => new Response(JSON.stringify({ ok: true })));
-
-// Administrative: attach/map a channel listing to a variant (when known)
-// POST /channels/map { platform, variantId, platformListingId, status, payload }
-r.post("/map", async () => new Response(JSON.stringify({ ok: true })));
-
-// Helper: list active listings per variant
-// GET /channels/variant/:variantId
-r.get(
-  "/variant/:variantId",
-  async () =>
-    new Response(JSON.stringify({ listings: [] }), {
-      headers: { "Content-Type": "application/json" }
-    })
+    return json({ ok: true, result: response });
+  })
 );
 
-export default { handle: r.handle };
+router.post(
+  '/delist-all',
+  withRoute(async (request) => {
+    const body = (await ensureJson(request)) as { variantId?: string };
+    if (!body.variantId) {
+      throw new HttpError(400, 'variantId required');
+    }
+    // TODO: end eBay offer + enqueue delist_tasks for FB/Vinted/Gumtree
+    console.log('[channels] delist all', body.variantId);
+    return json({ ok: true, queued: true });
+  })
+);
+
+router.post(
+  '/map',
+  withRoute(async (request) => {
+    const body = await ensureJson(request);
+    console.log('[channels] map listing', body);
+    // TODO: persist mapping in channel_listings table
+    return json({ ok: true });
+  })
+);
+
+export default router;

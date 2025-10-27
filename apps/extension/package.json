@@ -1,6 +1,11 @@
 {
   "name": "snapsell-extension",
   "private": true,
-  "scripts": { "build": "echo Build step TBD" },
-  "devDependencies": { "typescript": "5.6.3" }
+  "scripts": {
+    "clean": "rm -rf dist",
+    "build": "npm run clean && tsc --project tsconfig.json && cp src/popup.html dist/popup.html && cp manifest.json dist/manifest.json"
+  },
+  "devDependencies": {
+    "typescript": "5.6.3"
+  }
 }

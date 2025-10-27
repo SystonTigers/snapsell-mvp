@@ -1,6 +1,7 @@
-SUPABASE_URL=
-SUPABASE_SERVICE_ROLE=
-JWT_SECRET=
+SUPABASE_URL=https://your-project.supabase.co
+SUPABASE_SERVICE_ROLE=service-role-key
+JWT_SECRET=dev-secret-change-me
 EBAY_CLIENT_ID=
 EBAY_CLIENT_SECRET=
-EBAY_REDIRECT_URI=
+EBAY_REDIRECT_URI=https://example.com/callback
+ALLOWED_ORIGINS=http://localhost:3000,https://snapsell-web.vercel.app

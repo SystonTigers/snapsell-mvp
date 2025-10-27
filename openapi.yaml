@@ -1,0 +1,401 @@
+openapi: 3.1.0
+info:
+  title: SnapSell API
+  version: 0.1.0
+  description: |
+    API contract for the SnapSell Worker covering inventory intake, pricing, purchases,
+    channel sync, and CSV exports. Routes use JWT authentication (not yet implemented) and
+    respond with JSON unless noted.
+servers:
+  - url: https://snapsell-api.example.workers.dev
+paths:
+  /:
+    get:
+      summary: Health probe
+      responses:
+        '200':
+          description: Worker responding
+          content:
+            text/plain:
+              schema:
+                type: string
+  /items/ingest:
+    post:
+      summary: Ingest captured item assets
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/IngestRequest'
+      responses:
+        '202':
+          description: Accepted for processing
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/IngestResponse'
+  /items/price:
+    post:
+      summary: Suggest pricing using sold comps and smart helper
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PriceRequest'
+      responses:
+        '200':
+          description: Price recommendation
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PriceResponse'
+  /inventory/sale:
+    post:
+      summary: Record a sale, consume FIFO lots, sync channels
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SaleRequest'
+      responses:
+        '200':
+          description: Sale recorded
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SaleResponse'
+  /purchases:
+    get:
+      summary: List purchases with recovery snapshot
+      responses:
+        '200':
+          description: Purchases
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Purchase'
+    post:
+      summary: Create a purchase header
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PurchaseCreate'
+      responses:
+        '201':
+          description: Purchase created
+  /purchases/{purchaseId}:
+    get:
+      summary: Retrieve purchase detail including allocations and lots
+      parameters:
+        - in: path
+          name: purchaseId
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Purchase detail
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PurchaseDetail'
+  /purchases/{purchaseId}/allocate:
+    post:
+      summary: Allocate landed costs to lines
+      parameters:
+        - in: path
+          name: purchaseId
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AllocationRequest'
+      responses:
+        '200':
+          description: Allocation preview
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AllocationPreview'
+  /channels/ebay/sync-qty:
+    post:
+      summary: Sync quantity updates to eBay Inventory API
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/EbaySyncRequest'
+      responses:
+        '200':
+          description: Sync result
+  /channels/delist-all:
+    post:
+      summary: Auto-delist all mapped channel listings when stock hits zero
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DelistRequest'
+      responses:
+        '202':
+          description: Tasks queued
+  /extension/tasks:
+    get:
+      summary: Fetch pending relist tasks for MV3 extension
+      parameters:
+        - in: query
+          name: platform
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Tasks response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TaskList'
+  /export/stock.csv:
+    get:
+      summary: Stock levels for Sheets IMPORTDATA
+      responses:
+        '200':
+          description: CSV export
+          content:
+            text/csv:
+              schema:
+                type: string
+components:
+  schemas:
+    IngestRequest:
+      type: object
+      properties:
+        itemId:
+          type: string
+        media:
+          type: array
+          items:
+            type: string
+    IngestResponse:
+      type: object
+      properties:
+        ok:
+          type: boolean
+        mediaIds:
+          type: array
+          items:
+            type: string
+    PriceRequest:
+      type: object
+      properties:
+        comps:
+          type: array
+          items:
+            $ref: '#/components/schemas/Comparable'
+        targetCondition:
+          type: string
+        cogs:
+          type: number
+        targetMarginPct:
+          type: number
+        rrp:
+          type: number
+        expected:
+          type: number
+    Comparable:
+      type: object
+      properties:
+        price:
+          type: number
+        condition:
+          type: string
+    PriceResponse:
+      type: object
+      properties:
+        ok:
+          type: boolean
+        price:
+          type: object
+          properties:
+            suggested:
+              type: number
+            condition:
+              type: string
+    SaleRequest:
+      type: object
+      properties:
+        platform:
+          type: string
+        orderId:
+          type: string
+        variantId:
+          type: string
+        qty:
+          type: integer
+        salePrice:
+          type: number
+        fees:
+          type: number
+        shippingCost:
+          type: number
+        otherCosts:
+          type: number
+    SaleResponse:
+      type: object
+      properties:
+        ok:
+          type: boolean
+        saleId:
+          type: string
+        lotsConsumed:
+          type: array
+          items:
+            type: object
+            properties:
+              lotId:
+                type: string
+              qty:
+                type: integer
+    Purchase:
+      type: object
+      properties:
+        id:
+          type: string
+        supplier:
+          type: string
+        ref:
+          type: string
+        status:
+          type: string
+        recoveryMode:
+          type: string
+        recoveredAmount:
+          type: number
+    PurchaseCreate:
+      type: object
+      properties:
+        supplier:
+          type: string
+        ref:
+          type: string
+        purchasedAt:
+          type: string
+    PurchaseDetail:
+      allOf:
+        - $ref: '#/components/schemas/Purchase'
+        - type: object
+          properties:
+            lines:
+              type: array
+              items:
+                $ref: '#/components/schemas/PurchaseLine'
+            allocations:
+              type: array
+              items:
+                $ref: '#/components/schemas/AllocationSnapshot'
+            lots:
+              type: array
+              items:
+                $ref: '#/components/schemas/Lot'
+    PurchaseLine:
+      type: object
+      properties:
+        id:
+          type: string
+        variantId:
+          type: string
+        qty:
+          type: integer
+        declaredUnitCost:
+          type: number
+    AllocationRequest:
+      type: object
+      properties:
+        method:
+          type: string
+        manualOverrides:
+          type: array
+          items:
+            type: object
+            properties:
+              purchaseLineId:
+                type: string
+              unitCost:
+                type: number
+    AllocationPreview:
+      type: object
+      properties:
+        ok:
+          type: boolean
+        allocation:
+          $ref: '#/components/schemas/AllocationSnapshot'
+    AllocationSnapshot:
+      type: object
+      properties:
+        method:
+          type: string
+        breakdown:
+          type: array
+          items:
+            type: object
+            properties:
+              purchaseLineId:
+                type: string
+              unitCogs:
+                type: number
+    Lot:
+      type: object
+      properties:
+        id:
+          type: string
+        variantId:
+          type: string
+        qtyRemaining:
+          type: integer
+        unitCogs:
+          type: number
+    EbaySyncRequest:
+      type: object
+      properties:
+        variantId:
+          type: string
+        offerId:
+          type: string
+        newQty:
+          type: integer
+        newPrice:
+          type: number
+    DelistRequest:
+      type: object
+      properties:
+        variantId:
+          type: string
+    TaskList:
+      type: object
+      properties:
+        tasks:
+          type: array
+          items:
+            type: object
+            properties:
+              id:
+                type: string
+              platform:
+                type: string
+              variantId:
+                type: string
