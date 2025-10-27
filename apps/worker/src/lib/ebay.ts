@@ -1,6 +1,64 @@
+import type { Env } from '../index';
 import type { EnvChecked } from './env';
 
+type Ctx = { env: Env };
+
 const EBAY_API_BASE = 'https://apix.ebay.com';
+export const EBAY_REST_BASE = (env: Env) =>
+  env.EBAY_ENV === 'production' ? 'https://api.ebay.com' : 'https://api.sandbox.ebay.com';
+export const EBAY_AUTH_BASE = (env: Env) =>
+  env.EBAY_ENV === 'production'
+    ? 'https://auth.ebay.com/oauth2/authorize'
+    : 'https://auth.sandbox.ebay.com/oauth2/authorize';
+
+const basicAuthHeader = (env: Env) => {
+  if (!env.EBAY_CLIENT_ID || !env.EBAY_CLIENT_SECRET) {
+    throw new Error('Missing eBay client credentials');
+  }
+  return btoa(`${env.EBAY_CLIENT_ID}:${env.EBAY_CLIENT_SECRET}`);
+};
+
+export async function exchangeCodeForTokens(ctx: Ctx, code: string) {
+  if (!ctx.env.EBAY_REDIRECT_URI) {
+    throw new Error('Missing eBay redirect URI');
+  }
+  const resp = await fetch(`${EBAY_REST_BASE(ctx.env)}/identity/v1/oauth2/token`, {
+    method: 'POST',
+    headers: {
+      Authorization: `Basic ${basicAuthHeader(ctx.env)}`,
+      'Content-Type': 'application/x-www-form-urlencoded'
+    },
+    body: new URLSearchParams({
+      grant_type: 'authorization_code',
+      code,
+      redirect_uri: ctx.env.EBAY_REDIRECT_URI
+    })
+  });
+  if (!resp.ok) {
+    throw new Error(`eBay token exchange failed: ${resp.status}`);
+  }
+  return (await resp.json()) as Record<string, unknown>;
+}
+
+export async function refreshTokens(ctx: Ctx, refreshToken: string) {
+  const resp = await fetch(`${EBAY_REST_BASE(ctx.env)}/identity/v1/oauth2/token`, {
+    method: 'POST',
+    headers: {
+      Authorization: `Basic ${basicAuthHeader(ctx.env)}`,
+      'Content-Type': 'application/x-www-form-urlencoded'
+    },
+    body: new URLSearchParams({
+      grant_type: 'refresh_token',
+      refresh_token: refreshToken,
+      scope:
+        'https://api.ebay.com/oauth/api_scope/sell.inventory https://api.ebay.com/oauth/api_scope/sell.account'
+    })
+  });
+  if (!resp.ok) {
+    throw new Error(`eBay refresh failed: ${resp.status}`);
+  }
+  return (await resp.json()) as Record<string, unknown>;
+}
 
 type PricePayload = { currency: string; value: number };
 

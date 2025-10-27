@@ -32,19 +32,57 @@ export const withErrors = <E extends EnvChecked>(
   handler: (request: Request, env: EnvChecked & E, ctx: ExecutionContext) => Promise<Response | void> | Response | void
 ) => {
   return async (request: Request, env: EnvChecked & E, ctx: ExecutionContext): Promise<Response> => {
+    const requestId = crypto.randomUUID();
+    const startedAt = Date.now();
     try {
       const response = await handler(request, env, ctx);
-      if (response instanceof Response) {
-        return response;
-      }
-      return json({ ok: false, error: 'Not Found' }, { status: 404 });
+      const finalResponse = response instanceof Response ? response : json({ ok: false, error: 'Not Found' }, { status: 404 });
+      finalResponse.headers.set('x-request-id', requestId);
+      console.log(
+        JSON.stringify({
+          level: 'info',
+          requestId,
+          method: request.method,
+          path: new URL(request.url).pathname,
+          status: finalResponse.status,
+          durationMs: Date.now() - startedAt
+        })
+      );
+      return finalResponse;
     } catch (error) {
       if (error instanceof HttpError) {
-        return json({ ok: false, error: error.message, details: error.details }, { status: error.status });
+        const response = json({ ok: false, error: error.message, details: error.details }, { status: error.status });
+        response.headers.set('x-request-id', requestId);
+        console.warn(
+          JSON.stringify({
+            level: 'warn',
+            requestId,
+            method: request.method,
+            path: new URL(request.url).pathname,
+            status: error.status,
+            error: error.message,
+            details: error.details ?? null,
+            durationMs: Date.now() - startedAt
+          })
+        );
+        return response;
       }
       const message = error instanceof Error ? error.message : String(error);
-      console.error('[worker] request failed', message);
-      return json({ ok: false, error: 'Internal error' }, { status: 500 });
+      const response = json({ ok: false, error: 'Internal error' }, { status: 500 });
+      response.headers.set('x-request-id', requestId);
+      console.error(
+        JSON.stringify({
+          level: 'error',
+          requestId,
+          method: request.method,
+          path: new URL(request.url).pathname,
+          status: 500,
+          error: message,
+          stack: error instanceof Error ? error.stack : undefined,
+          durationMs: Date.now() - startedAt
+        })
+      );
+      return response;
     }
   };
 };

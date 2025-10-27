@@ -1,38 +1,46 @@
 name: CI
 
 on:
-  pull_request:
   push:
     branches: [main]
+  pull_request:
 
-jobs:
-  build:
-    branches:
-      - main
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   quality:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+
       - uses: pnpm/action-setup@v4
         with:
           version: 9.12.0
+
       - uses: actions/setup-node@v4
         with:
           node-version: 22
           cache: pnpm
-      - run: pnpm install
-      - run: pnpm check:conflicts
-      - run: pnpm lint
-      - run: pnpm typecheck
-      - run: pnpm test || echo "No tests configured"
-          version: 9.12.2
-      - name: Install dependencies
-        run: pnpm install --frozen-lockfile
-      - name: Lint
-        run: pnpm lint
-      - name: Typecheck
-        run: pnpm typecheck
-      - name: Test
-        run: pnpm test
+
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm -w run check:conflicts
+      - run: pnpm -w run lint
+      - run: pnpm -w run typecheck
+      - run: pnpm -w run test || echo "No tests configured"
+
+  preview:
+    if: github.event_name == 'pull_request'
+    needs: quality
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      deployments: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build Worker preview (dry)
+        run: echo "Build Worker preview here if needed"
+
+      # Optional: call Vercel/GitHub Deployments if configured

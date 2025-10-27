@@ -1,52 +1,30 @@
-interface RelistTaskMessage {
-  type: "snapsell.tasks";
-  platform: "facebook" | "vinted" | "gumtree";
-  tasks: Array<{
-    id: string;
-    variant_id: string;
-    template_payload?: Record<string, unknown>;
-  }>;
-}
+(async function autofill() {
+  try {
+    const title = document.querySelector('input[name="title"], input#title') as HTMLInputElement | null;
+    const description = document.querySelector('textarea[name="description"], textarea#description') as HTMLTextAreaElement | null;
+    if (!title && !description) {
+      return;
+    }
 
-declare global {
-  interface Window {
-    __SNAPSELL_QUEUE__?: RelistTaskMessage["tasks"];
+    const payload = await fetch('http://localhost:8787/ext/demoPayload')
+      .then((res) => (res.ok ? res.json() : Promise.reject(new Error(`HTTP ${res.status}`))))
+      .catch((error) => {
+        console.warn('SnapSell autofill payload fetch failed', error);
+        return null;
+      });
+
+    if (!payload) {
+      return;
+    }
+
+    if (title && typeof payload.title === 'string') {
+      title.value = payload.title;
+    }
+    if (description && typeof payload.description === 'string') {
+      description.value = payload.description;
+    }
+    console.log('SnapSell Autofill populated demo payload');
+  } catch (error) {
+    console.error('SnapSell Autofill error', error);
   }
-}
-
-function handleTasks(message: RelistTaskMessage) {
-  window.__SNAPSELL_QUEUE__ = message.tasks;
-  console.info("SnapSell: received tasks", message.platform, message.tasks.length);
-  if (!message.tasks.length) return;
-
-  const [next] = message.tasks;
-  highlightDraftIntent(next);
-}
-
-function highlightDraftIntent(task: RelistTaskMessage["tasks"][number]) {
-  const bannerId = "snapsell-task-banner";
-  let banner = document.getElementById(bannerId);
-  if (!banner) {
-    banner = document.createElement("div");
-    banner.id = bannerId;
-    banner.style.position = "fixed";
-    banner.style.bottom = "16px";
-    banner.style.right = "16px";
-    banner.style.zIndex = "999999";
-    banner.style.padding = "12px 16px";
-    banner.style.background = "#1f2937";
-    banner.style.color = "#fff";
-    banner.style.borderRadius = "8px";
-    banner.style.boxShadow = "0 8px 24px rgba(0,0,0,0.35)";
-    document.body.appendChild(banner);
-  }
-  banner.textContent = `SnapSell task ready: ${task.variant_id}`;
-}
-
-chrome.runtime.onMessage.addListener((message) => {
-  if (message?.type === "snapsell.tasks") {
-    handleTasks(message as RelistTaskMessage);
-  }
-});
-
-console.log("SnapSell Autofill content script ready");
+})();

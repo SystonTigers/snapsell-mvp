@@ -2,23 +2,16 @@
   "manifest_version": 3,
   "name": "SnapSell Autofill",
   "version": "0.1.0",
-  "description": "Auto-fill marketplace forms from SnapSell relist tasks.",
-  "permissions": ["activeTab", "scripting", "storage", "tabs"],
-  "host_permissions": [
-    "https://*.vinted.*/*",
-    "https://www.gumtree.com/*",
-    "https://www.facebook.com/marketplace/*"
-  ],
-  "background": { "service_worker": "dist/background.js" },
-  "action": { "default_popup": "dist/popup.html" },
+  "description": "Autofill listing forms with SnapSell data",
+  "permissions": ["storage", "scripting", "activeTab"],
+  "host_permissions": ["https://www.ebay.*/*", "https://www.sandbox.ebay.*/*"],
+  "action": { "default_title": "SnapSell" },
+  "background": { "service_worker": "background.js" },
   "content_scripts": [
     {
-      "matches": [
-        "https://*.vinted.*/*",
-        "https://www.gumtree.com/*",
-        "https://www.facebook.com/marketplace/*"
-      ],
-      "js": ["dist/content.js"]
+      "matches": ["https://www.ebay.*/*", "https://www.sandbox.ebay.*/*"],
+      "js": ["content.js"],
+      "run_at": "document_idle"
     }
   ]
 }

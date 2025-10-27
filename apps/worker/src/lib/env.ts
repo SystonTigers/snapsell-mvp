@@ -13,6 +13,9 @@ const RawEnvSchema = z.object({
   EBAY_CLIENT_ID: z.string().optional(),
   EBAY_CLIENT_SECRET: z.string().optional(),
   EBAY_REDIRECT_URI: z.string().url().optional(),
+  EBAY_ENV: z.enum(['sandbox', 'production']).default('sandbox'),
+  DRY_RUN: z.string().optional(),
+  WEB_URL: z.string().url().optional(),
   CORS_ALLOWED_ORIGINS: z.string().optional()
 });
 
