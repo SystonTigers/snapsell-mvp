@@ -28,7 +28,14 @@ jobs:
       - run: pnpm -w run check:conflicts
       - run: pnpm -w run lint
       - run: pnpm -w run typecheck
-      - run: pnpm -w run test || echo "No tests configured"
+      - run: pnpm -w run test
+
+      - name: Check for pnpm-lock.yaml
+        run: |
+          if [ ! -f pnpm-lock.yaml ]; then
+            echo "Error: pnpm-lock.yaml not found!"
+            exit 1
+          fi
 
   preview:
     if: github.event_name == 'pull_request'

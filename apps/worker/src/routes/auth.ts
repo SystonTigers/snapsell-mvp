@@ -3,7 +3,7 @@ import { Router } from 'itty-router';
 import { HttpError } from '../lib/http';
 import type { Env } from '../index';
 import { exchangeCodeForTokens } from '../lib/ebay';
-import { getDb } from '../lib/db';
+import { getDbServiceRole } from '../lib/db-client';
 import { EBAY_AUTH_BASE } from '../lib/ebay';
 
 const router = Router({ base: '/auth' });
@@ -49,16 +49,17 @@ router.get('/ebay/callback', async (request, env: Env) => {
     ? new Date(Date.now() + (expiresIn - 60) * 1000).toISOString()
     : null;
 
-  const supa = getDb(env);
-  const { error } = await supa
+  const supa = getDbServiceRole(env);
+  const updateResult = await supa
     .from('channels')
     .update({
       access_token: (tokens as { access_token?: string }).access_token ?? null,
       refresh_token: (tokens as { refresh_token?: string }).refresh_token ?? null,
       token_expires_at: expiresAt,
       status: 'connected'
-    })
-    .eq('id', state);
+    });
+
+  const { error } = await updateResult.eq('id', state);
 
   if (error) {
     throw new HttpError(500, error.message);

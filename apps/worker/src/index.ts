@@ -3,6 +3,7 @@ import { Router } from 'itty-router';
 import { checkEnv, type EnvChecked } from './lib/env';
 import {
   applyCorsHeaders,
+  applySecurityHeaders,
   enforceBodyLimit,
   enforceCors,
   json,
@@ -49,9 +50,19 @@ mountSubrouter('/purchases', purchases.handle);
 
 const BODY_LIMIT_BYTES = 1_048_576; // 1 MiB
 const BODY_EXEMPT_PATHS = ['/items/ingest'];
+
+// Rate limiting configuration - apply to all expensive operations
 const RATE_LIMITED_PATHS = new Map<string, { windowSeconds: number; max: number }>([
+  // Pricing is computationally expensive
   ['/items/price', { windowSeconds: 60, max: 40 }],
-  ['/channels/ebay/sync-qty', { windowSeconds: 60, max: 20 }]
+  // Publishing to eBay hits external API
+  ['/listings/ebay/publish', { windowSeconds: 60, max: 10 }],
+  // Sync operations hit external API
+  ['/channels/ebay/sync-qty', { windowSeconds: 60, max: 20 }],
+  // Purchase operations involve multiple DB writes
+  ['/purchases', { windowSeconds: 60, max: 30 }],
+  // Export operations are resource intensive
+  ['/export/stock.csv', { windowSeconds: 60, max: 10 }],
 ]);
 
 type WorkerEnv = EnvChecked & { RATE_LIMIT_KV?: KVNamespace };
@@ -73,6 +84,8 @@ const handler = withErrors(async (request: Request, rawEnv: WorkerEnv, ctx: Exec
   }
 
   const url = new URL(request.url);
+
+  // Check rate limiting
   const rateConfig = RATE_LIMITED_PATHS.get(url.pathname);
   if (rateConfig) {
     const clientIp =
@@ -82,14 +95,27 @@ const handler = withErrors(async (request: Request, rawEnv: WorkerEnv, ctx: Exec
       'unknown';
     const limitResult = await rateLimit(rawEnv.RATE_LIMIT_KV, `${url.pathname}:${clientIp}`, rateConfig);
     if (!limitResult.allowed) {
-      return applyCorsHeaders(json({ ok: false, error: 'Rate limit exceeded' }, { status: 429 }), cors);
+      const rateLimitResponse = json(
+        { ok: false, error: 'Rate limit exceeded' },
+        {
+          status: 429,
+          headers: {
+            'Retry-After': String(rateConfig.windowSeconds),
+            'X-RateLimit-Limit': String(rateConfig.max),
+            'X-RateLimit-Remaining': '0'
+          }
+        }
+      );
+      return applySecurityHeaders(applyCorsHeaders(rateLimitResponse, cors));
     }
   }
 
   const response = await router.handle(request, { ...rawEnv, ...env }, ctx);
   const finalResponse =
     response instanceof Response ? response : json({ ok: false, error: 'Not Found' }, { status: 404 });
-  return applyCorsHeaders(finalResponse, cors);
+
+  // Apply security headers and CORS to all responses
+  return applySecurityHeaders(applyCorsHeaders(finalResponse, cors));
 });
 
 export type Env = WorkerEnv;

@@ -1,3 +1,40 @@
 name = "snapsell-api"
 main = "src/index.ts"
 compatibility_date = "2024-10-01"
+
+# KV namespace for rate limiting
+# Create with: wrangler kv:namespace create "RATE_LIMIT_KV"
+# Then uncomment and add your namespace ID:
+# kv_namespaces = [
+#   { binding = "RATE_LIMIT_KV", id = "your-kv-namespace-id" }
+# ]
+
+# Development environment
+[env.development]
+name = "snapsell-api-dev"
+vars = { ENVIRONMENT = "development", EBAY_ENV = "sandbox" }
+
+# Staging environment
+[env.staging]
+name = "snapsell-api-staging"
+vars = { ENVIRONMENT = "staging", EBAY_ENV = "sandbox" }
+# kv_namespaces = [
+#   { binding = "RATE_LIMIT_KV", id = "your-staging-kv-id" }
+# ]
+
+# Production environment
+[env.production]
+name = "snapsell-api"
+vars = { ENVIRONMENT = "production", EBAY_ENV = "production" }
+# kv_namespaces = [
+#   { binding = "RATE_LIMIT_KV", id = "your-production-kv-id" }
+# ]
+
+# Build configuration
+[build]
+command = "npm run build"
+
+# Custom routes (optional - for custom domains)
+# routes = [
+#   { pattern = "api.snapsell.app/*", zone_name = "snapsell.app" }
+# ]

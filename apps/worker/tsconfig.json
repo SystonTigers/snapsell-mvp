@@ -5,9 +5,9 @@
     "moduleResolution": "Bundler",
     "lib": ["ES2022", "WebWorker"],
     "strict": true,
-    "rootDir": "src",
+    "rootDir": ".",
     "types": ["@cloudflare/workers-types", "vitest/globals"],
-    "baseUrl": "./src",
+    "baseUrl": ".",
     "paths": {
       "@snapsell/shared/*": ["../../packages/shared/src/*"]
     }

@@ -71,6 +71,94 @@ type BulkUpdateOptions = {
   baseUrl?: string;
 };
 
+/**
+ * Get eBay access token for a channel, refreshing if expired
+ * This ensures tokens are always valid before making API calls
+ */
+export const getValidEbayToken = async (env: EnvChecked, channelId: string): Promise<string> => {
+  // Get channel data including tokens and expiry
+  const url = new URL('/rest/v1/channels', env.SUPABASE_URL);
+  url.searchParams.set('id', `eq.${channelId}`);
+  url.searchParams.set('select', 'access_token,refresh_token,token_expires_at');
+
+  const res = await fetch(url.toString(), {
+    headers: {
+      apikey: env.SUPABASE_SERVICE_ROLE,
+      authorization: `Bearer ${env.SUPABASE_SERVICE_ROLE}`,
+      'content-type': 'application/json',
+      accept: 'application/json'
+    }
+  });
+
+  if (!res.ok) {
+    throw new Error(`Failed to fetch channel: ${res.status}`);
+  }
+
+  const channels = (await res.json()) as Array<{
+    access_token?: string;
+    refresh_token?: string;
+    token_expires_at?: string;
+  }>;
+
+  const channel = channels[0];
+  if (!channel) {
+    throw new Error('Channel not found');
+  }
+
+  if (!channel.access_token) {
+    throw new Error('Channel not connected - no access token');
+  }
+
+  // Check if token is expired or will expire in next 5 minutes
+  const now = new Date();
+  const expiresAt = channel.token_expires_at ? new Date(channel.token_expires_at) : null;
+  const expiresInMs = expiresAt ? expiresAt.getTime() - now.getTime() : 0;
+  const needsRefresh = !expiresAt || expiresInMs < 5 * 60 * 1000; // 5 minutes buffer
+
+  if (needsRefresh && channel.refresh_token) {
+    console.log(`Refreshing eBay token for channel ${channelId}`);
+
+    try {
+      const tokens = await refreshTokens({ env }, channel.refresh_token);
+      const newAccessToken = (tokens as { access_token?: string }).access_token;
+      const newRefreshToken = (tokens as { refresh_token?: string }).refresh_token;
+      const expiresIn = Number((tokens as { expires_in?: unknown })?.expires_in ?? 0);
+
+      const newExpiresAt = Number.isFinite(expiresIn) && expiresIn > 0
+        ? new Date(Date.now() + (expiresIn - 60) * 1000).toISOString()
+        : null;
+
+      // Update channel with new tokens
+      const updateUrl = new URL('/rest/v1/channels', env.SUPABASE_URL);
+      updateUrl.searchParams.set('id', `eq.${channelId}`);
+
+      await fetch(updateUrl.toString(), {
+        method: 'PATCH',
+        headers: {
+          apikey: env.SUPABASE_SERVICE_ROLE,
+          authorization: `Bearer ${env.SUPABASE_SERVICE_ROLE}`,
+          'content-type': 'application/json',
+          Prefer: 'return=minimal'
+        },
+        body: JSON.stringify({
+          access_token: newAccessToken,
+          refresh_token: newRefreshToken,
+          token_expires_at: newExpiresAt
+        })
+      });
+
+      return newAccessToken || channel.access_token;
+    } catch (error) {
+      console.error(`Failed to refresh token for channel ${channelId}:`, error);
+      // Fall back to existing token
+      return channel.access_token;
+    }
+  }
+
+  return channel.access_token;
+};
+
+// Legacy function - kept for backward compatibility
 export const resolveEbayAccessToken = async (env: EnvChecked, accountId: string): Promise<string> => {
   const url = new URL('/rest/v1/accounts', env.SUPABASE_URL);
   url.searchParams.set('id', `eq.${accountId}`);

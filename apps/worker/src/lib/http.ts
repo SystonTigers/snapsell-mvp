@@ -136,6 +136,22 @@ export const applyCorsHeaders = (response: Response, cors: CorsContext): Respons
   return response;
 };
 
+/**
+ * Apply security headers to response
+ */
+export const applySecurityHeaders = (response: Response): Response => {
+  response.headers.set('X-Content-Type-Options', 'nosniff');
+  response.headers.set('X-Frame-Options', 'DENY');
+  response.headers.set('Referrer-Policy', 'strict-origin-when-cross-origin');
+  response.headers.set('Permissions-Policy', 'geolocation=(), microphone=(), camera=()');
+  response.headers.set('X-XSS-Protection', '1; mode=block');
+  // Add HSTS for production
+  if (!response.headers.has('Strict-Transport-Security')) {
+    response.headers.set('Strict-Transport-Security', 'max-age=31536000; includeSubDomains');
+  }
+  return response;
+};
+
 export const preflight = (cors: CorsContext): Response => {
   const response = new Response(null, { status: 204 });
   if (cors.allowOrigin && cors.origin) {
